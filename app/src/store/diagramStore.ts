@@ -1,0 +1,301 @@
+import { create } from 'zustand';
+import { v4 as uuidv4 } from 'uuid';
+import {
+  DiagramNode,
+  DiagramEdge,
+  DiagramData,
+  DEFAULT_NODE_STYLE,
+  NodeStyle,
+} from '@/types/diagram';
+
+const STORAGE_KEY = 'holen-diagram';
+
+interface HistoryState {
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+}
+
+interface DiagramStore {
+  // State
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+  selectedNodeId: string | null;
+  diagramName: string;
+
+  // History for undo/redo
+  history: HistoryState[];
+  historyIndex: number;
+
+  // Actions
+  setSelectedNode: (id: string | null) => void;
+  addRootNode: () => void;
+  addChildNode: (parentId: string) => void;
+  addSiblingNode: (siblingId: string) => void;
+  updateNode: (id: string, updates: Partial<DiagramNode>) => void;
+  deleteNode: (id: string) => void;
+  setNodePositions: (positions: { id: string; x: number; y: number }[]) => void;
+  setDiagramName: (name: string) => void;
+
+  // History actions
+  undo: () => void;
+  redo: () => void;
+  saveToHistory: () => void;
+
+  // Persistence
+  saveDiagram: () => DiagramData;
+  loadDiagram: (data: DiagramData) => void;
+  saveToLocalStorage: () => void;
+  loadFromLocalStorage: () => boolean;
+  clearDiagram: () => void;
+
+  // Computed
+  getNodeById: (id: string) => DiagramNode | undefined;
+  getChildNodes: (parentId: string) => DiagramNode[];
+  getRootNodes: () => DiagramNode[];
+}
+
+function deriveEdges(nodes: DiagramNode[]): DiagramEdge[] {
+  return nodes
+    .filter((n) => n.parentId !== null)
+    .map((n) => ({
+      id: `edge-${n.parentId}-${n.id}`,
+      source: n.parentId!,
+      target: n.id,
+      type: 'smoothstep' as const,
+    }));
+}
+
+function createNode(
+  parentId: string | null,
+  title: string = 'New Node',
+  style: NodeStyle = DEFAULT_NODE_STYLE
+): DiagramNode {
+  return {
+    id: uuidv4(),
+    parentId,
+    title,
+    subtitle: '',
+    badge: '',
+    style,
+    width: 160,
+    height: 80,
+    position: { x: 0, y: 0 },
+  };
+}
+
+export const useDiagramStore = create<DiagramStore>((set, get) => ({
+  nodes: [],
+  edges: [],
+  selectedNodeId: null,
+  diagramName: 'Untitled Diagram',
+  history: [],
+  historyIndex: -1,
+
+  setSelectedNode: (id) => set({ selectedNodeId: id }),
+
+  addRootNode: () => {
+    get().saveToHistory();
+    const node = createNode(null, 'Root Node');
+    node.position = { x: 400, y: 50 };
+    set((state) => ({
+      nodes: [...state.nodes, node],
+      edges: deriveEdges([...state.nodes, node]),
+      selectedNodeId: node.id,
+    }));
+    get().saveToLocalStorage();
+  },
+
+  addChildNode: (parentId) => {
+    get().saveToHistory();
+    const parent = get().getNodeById(parentId);
+    if (!parent) return;
+
+    const node = createNode(parentId, 'Child Node', parent.style);
+    node.position = {
+      x: parent.position.x,
+      y: parent.position.y + 120,
+    };
+
+    set((state) => ({
+      nodes: [...state.nodes, node],
+      edges: deriveEdges([...state.nodes, node]),
+      selectedNodeId: node.id,
+    }));
+    get().saveToLocalStorage();
+  },
+
+  addSiblingNode: (siblingId) => {
+    get().saveToHistory();
+    const sibling = get().getNodeById(siblingId);
+    if (!sibling) return;
+
+    const node = createNode(
+      sibling.parentId,
+      'Sibling Node',
+      sibling.style
+    );
+    node.position = {
+      x: sibling.position.x + 180,
+      y: sibling.position.y,
+    };
+
+    set((state) => ({
+      nodes: [...state.nodes, node],
+      edges: deriveEdges([...state.nodes, node]),
+      selectedNodeId: node.id,
+    }));
+    get().saveToLocalStorage();
+  },
+
+  updateNode: (id, updates) => {
+    get().saveToHistory();
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.id === id ? { ...n, ...updates } : n
+      ),
+    }));
+    get().saveToLocalStorage();
+  },
+
+  deleteNode: (id) => {
+    get().saveToHistory();
+    const nodesToDelete = new Set<string>();
+    const collectDescendants = (nodeId: string) => {
+      nodesToDelete.add(nodeId);
+      get()
+        .getChildNodes(nodeId)
+        .forEach((child) => collectDescendants(child.id));
+    };
+    collectDescendants(id);
+
+    set((state) => {
+      const newNodes = state.nodes.filter((n) => !nodesToDelete.has(n.id));
+      return {
+        nodes: newNodes,
+        edges: deriveEdges(newNodes),
+        selectedNodeId:
+          state.selectedNodeId && nodesToDelete.has(state.selectedNodeId)
+            ? null
+            : state.selectedNodeId,
+      };
+    });
+    get().saveToLocalStorage();
+  },
+
+  setNodePositions: (positions) => {
+    set((state) => ({
+      nodes: state.nodes.map((n) => {
+        const pos = positions.find((p) => p.id === n.id);
+        return pos ? { ...n, position: { x: pos.x, y: pos.y } } : n;
+      }),
+    }));
+    get().saveToLocalStorage();
+  },
+
+  setDiagramName: (name) => {
+    set({ diagramName: name });
+    get().saveToLocalStorage();
+  },
+
+  saveToHistory: () => {
+    const { nodes, edges, history, historyIndex } = get();
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push({
+      nodes: JSON.parse(JSON.stringify(nodes)),
+      edges: JSON.parse(JSON.stringify(edges)),
+    });
+    // Keep max 50 history states
+    if (newHistory.length > 50) newHistory.shift();
+    set({ history: newHistory, historyIndex: newHistory.length - 1 });
+  },
+
+  undo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex > 0) {
+      const prevState = history[historyIndex - 1];
+      set({
+        nodes: prevState.nodes,
+        edges: prevState.edges,
+        historyIndex: historyIndex - 1,
+      });
+      get().saveToLocalStorage();
+    }
+  },
+
+  redo: () => {
+    const { history, historyIndex } = get();
+    if (historyIndex < history.length - 1) {
+      const nextState = history[historyIndex + 1];
+      set({
+        nodes: nextState.nodes,
+        edges: nextState.edges,
+        historyIndex: historyIndex + 1,
+      });
+      get().saveToLocalStorage();
+    }
+  },
+
+  saveDiagram: () => {
+    const { nodes, edges, diagramName } = get();
+    return {
+      schemaVersion: 1,
+      nodes,
+      edges,
+      settings: {
+        name: diagramName,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+    };
+  },
+
+  loadDiagram: (data) => {
+    set({
+      nodes: data.nodes,
+      edges: data.edges,
+      diagramName: data.settings.name,
+      selectedNodeId: null,
+      history: [],
+      historyIndex: -1,
+    });
+    get().saveToLocalStorage();
+  },
+
+  saveToLocalStorage: () => {
+    if (typeof window === 'undefined') return;
+    const data = get().saveDiagram();
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+  },
+
+  loadFromLocalStorage: () => {
+    if (typeof window === 'undefined') return false;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const data = JSON.parse(saved) as DiagramData;
+        get().loadDiagram(data);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+    return false;
+  },
+
+  clearDiagram: () => {
+    set({
+      nodes: [],
+      edges: [],
+      selectedNodeId: null,
+      diagramName: 'Untitled Diagram',
+      history: [],
+      historyIndex: -1,
+    });
+    get().saveToLocalStorage();
+  },
+
+  getNodeById: (id) => get().nodes.find((n) => n.id === id),
+  getChildNodes: (parentId) =>
+    get().nodes.filter((n) => n.parentId === parentId),
+  getRootNodes: () => get().nodes.filter((n) => n.parentId === null),
+}));
