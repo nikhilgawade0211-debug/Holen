@@ -217,6 +217,7 @@ function NodeCard({ data }: NodeCardProps) {
       <Handle
         type="target"
         position={Position.Top}
+        id="top"
         className="!w-3 !h-3 !bg-slate-400 !border-2 !border-white hover:!bg-blue-500 transition-colors"
       />
 
@@ -313,7 +314,8 @@ function NodeCard({ data }: NodeCardProps) {
         <Handle
           type="source"
           position={Position.Bottom}
-          className="!w-2 !h-2 !bg-gray-500"
+          id="bottom"
+          className="!w-3 !h-3 !bg-slate-400 !border-2 !border-white hover:!bg-blue-500 transition-colors"
         />
       </div>
 

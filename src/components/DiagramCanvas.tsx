@@ -65,8 +65,11 @@ export default function DiagramCanvas() {
         id: edge.id,
         source: edge.source,
         target: edge.target,
-        type: edge.type,
+        sourceHandle: 'bottom',
+        targetHandle: 'top',
+        type: 'smoothstep',
         style: { stroke: '#64748b', strokeWidth: 2 },
+        pathOptions: { offset: 20, borderRadius: 8 },
         animated: false,
       })),
     [diagramEdges]
@@ -148,6 +151,9 @@ export default function DiagramCanvas() {
         selectionMode={SelectionMode.Partial}
         selectionOnDrag
         panOnDrag={[1, 2]} // Pan with middle or right mouse button
+        panOnScroll // Enable two-finger scroll/trackpad panning
+        zoomOnScroll={false} // Disable zoom on scroll so pan works
+        zoomOnPinch // Enable pinch-to-zoom on touch
         selectNodesOnDrag={false}
         fitView
         fitViewOptions={{ padding: 0.2 }}
