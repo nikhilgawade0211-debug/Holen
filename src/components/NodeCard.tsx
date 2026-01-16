@@ -2,7 +2,7 @@
 
 import React, { memo, useCallback, useRef, useState } from 'react';
 import { Handle, Position } from '@xyflow/react';
-import { DiagramNode } from '@/types/diagram';
+import { DiagramNode, DEFAULT_TEXT_STYLE, DEFAULT_BOX_STYLE } from '@/types/diagram';
 import { useDiagramStore } from '@/store/diagramStore';
 
 export type NodeCardData = {
@@ -15,10 +15,49 @@ interface NodeCardProps {
   data: NodeCardData;
 }
 
+// Helper to get border radius class
+const getBorderRadius = (radius: string): string => {
+  switch (radius) {
+    case 'none': return '0px';
+    case 'sm': return '4px';
+    case 'md': return '8px';
+    case 'lg': return '16px';
+    case 'full': return '9999px';
+    default: return '4px';
+  }
+};
+
+// Helper to get shadow class
+const getShadow = (shadow: string): string => {
+  switch (shadow) {
+    case 'none': return 'none';
+    case 'sm': return '0 1px 2px rgba(0,0,0,0.1)';
+    case 'md': return '0 4px 6px rgba(0,0,0,0.1)';
+    case 'lg': return '0 10px 15px rgba(0,0,0,0.1)';
+    default: return '0 1px 2px rgba(0,0,0,0.1)';
+  }
+};
+
+// Helper to get font size
+const getFontSize = (size: string): string => {
+  switch (size) {
+    case 'xs': return '0.75rem';
+    case 'sm': return '0.875rem';
+    case 'base': return '1rem';
+    case 'lg': return '1.125rem';
+    case 'xl': return '1.25rem';
+    default: return '0.875rem';
+  }
+};
+
 function NodeCard({ data }: NodeCardProps) {
   const { node, isSelected } = data;
-  const { title, subtitle, badge, badgeConfig, style } = node;
+  const { title, subtitle, badge, badgeConfig, style, textStyle, boxStyle } = node;
   const updateNode = useDiagramStore((s) => s.updateNode);
+  
+  // Use defaults if not set
+  const txtStyle = textStyle || DEFAULT_TEXT_STYLE;
+  const bxStyle = boxStyle || DEFAULT_BOX_STYLE;
   
   const [isResizingBox, setIsResizingBox] = useState(false);
   const [isResizingBadge, setIsResizingBadge] = useState(false);
@@ -169,7 +208,7 @@ function NodeCard({ data }: NodeCardProps) {
 
   return (
     <div
-      className="relative flex flex-col items-center"
+      className="relative flex flex-col items-center transition-transform duration-150"
       style={{
         width: node.width,
       }}
@@ -178,25 +217,39 @@ function NodeCard({ data }: NodeCardProps) {
       <Handle
         type="target"
         position={Position.Top}
-        className="!w-2 !h-2 !bg-gray-500"
+        className="!w-3 !h-3 !bg-slate-400 !border-2 !border-white hover:!bg-blue-500 transition-colors"
       />
 
       {/* Node content */}
       <div
         className={`
-          relative flex flex-col items-center justify-center p-2 rounded-sm
-          border-2 transition-shadow w-full
-          ${isSelected ? 'shadow-lg ring-2 ring-blue-500' : 'shadow-sm'}
+          relative flex flex-col items-center justify-center p-3 w-full
+          transition-all duration-200 ease-out
+          ${isSelected ? 'ring-2 ring-blue-500 ring-offset-2' : ''}
         `}
         style={{
           backgroundColor: style.fill,
           borderColor: style.border,
+          borderWidth: `${bxStyle.borderWidth}px`,
+          borderStyle: bxStyle.borderStyle,
+          borderRadius: getBorderRadius(bxStyle.borderRadius),
+          boxShadow: isSelected ? `${getShadow(bxStyle.shadow)}, 0 0 0 2px rgba(59, 130, 246, 0.5)` : getShadow(bxStyle.shadow),
           color: style.textColor,
           minHeight: node.height,
         }}
       >
         {/* Title */}
-        <div className="text-sm font-semibold text-center leading-tight px-1">
+        <div 
+          className="leading-tight px-1"
+          style={{
+            fontSize: getFontSize(txtStyle.fontSize),
+            fontWeight: txtStyle.bold ? 600 : 500,
+            fontStyle: txtStyle.italic ? 'italic' : 'normal',
+            textDecoration: txtStyle.underline ? 'underline' : 'none',
+            textAlign: txtStyle.align,
+            width: '100%',
+          }}
+        >
           {title || 'Untitled'}
         </div>
 

@@ -6,6 +6,10 @@ import {
   DiagramData,
   DEFAULT_NODE_STYLE,
   NodeStyle,
+  TextStyle,
+  BoxStyle,
+  DEFAULT_TEXT_STYLE,
+  DEFAULT_BOX_STYLE,
 } from '@/types/diagram';
 
 const STORAGE_KEY = 'holen-diagram';
@@ -20,6 +24,7 @@ interface DiagramStore {
   nodes: DiagramNode[];
   edges: DiagramEdge[];
   selectedNodeId: string | null;
+  selectedNodeIds: string[]; // Multi-select support
   diagramName: string;
 
   // History for undo/redo
@@ -28,11 +33,18 @@ interface DiagramStore {
 
   // Actions
   setSelectedNode: (id: string | null) => void;
+  setSelectedNodes: (ids: string[]) => void;
+  toggleNodeSelection: (id: string) => void;
+  addToSelection: (ids: string[]) => void;
+  clearSelection: () => void;
   addRootNode: () => void;
   addChildNode: (parentId: string) => void;
   addSiblingNode: (siblingId: string) => void;
   updateNode: (id: string, updates: Partial<DiagramNode>) => void;
+  updateSelectedNodes: (updates: Partial<DiagramNode>) => void;
   deleteNode: (id: string) => void;
+  deleteSelectedNodes: () => void;
+  moveSelectedNodes: (deltaX: number, deltaY: number) => void;
   setNodePositions: (positions: { id: string; x: number; y: number }[]) => void;
   setDiagramName: (name: string) => void;
 
@@ -52,6 +64,7 @@ interface DiagramStore {
   getNodeById: (id: string) => DiagramNode | undefined;
   getChildNodes: (parentId: string) => DiagramNode[];
   getRootNodes: () => DiagramNode[];
+  getSelectedNodes: () => DiagramNode[];
 }
 
 function deriveEdges(nodes: DiagramNode[]): DiagramEdge[] {
@@ -68,7 +81,9 @@ function deriveEdges(nodes: DiagramNode[]): DiagramEdge[] {
 function createNode(
   parentId: string | null,
   title: string = 'New Node',
-  style: NodeStyle = DEFAULT_NODE_STYLE
+  style: NodeStyle = DEFAULT_NODE_STYLE,
+  textStyle: TextStyle = DEFAULT_TEXT_STYLE,
+  boxStyle: BoxStyle = DEFAULT_BOX_STYLE
 ): DiagramNode {
   return {
     id: uuidv4(),
@@ -77,6 +92,8 @@ function createNode(
     subtitle: '',
     badge: '',
     style,
+    textStyle,
+    boxStyle,
     width: 160,
     height: 80,
     position: { x: 0, y: 0 },
@@ -87,11 +104,46 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   nodes: [],
   edges: [],
   selectedNodeId: null,
+  selectedNodeIds: [],
   diagramName: 'Untitled Diagram',
   history: [],
   historyIndex: -1,
 
-  setSelectedNode: (id) => set({ selectedNodeId: id }),
+  setSelectedNode: (id) => set({ 
+    selectedNodeId: id,
+    selectedNodeIds: id ? [id] : [],
+  }),
+
+  setSelectedNodes: (ids) => set({
+    selectedNodeIds: ids,
+    selectedNodeId: ids.length === 1 ? ids[0] : (ids.length > 0 ? ids[0] : null),
+  }),
+
+  toggleNodeSelection: (id) => {
+    const { selectedNodeIds } = get();
+    const isSelected = selectedNodeIds.includes(id);
+    const newIds = isSelected
+      ? selectedNodeIds.filter((nid) => nid !== id)
+      : [...selectedNodeIds, id];
+    set({
+      selectedNodeIds: newIds,
+      selectedNodeId: newIds.length === 1 ? newIds[0] : (newIds.length > 0 ? newIds[0] : null),
+    });
+  },
+
+  addToSelection: (ids) => {
+    const { selectedNodeIds } = get();
+    const newIds = [...new Set([...selectedNodeIds, ...ids])];
+    set({
+      selectedNodeIds: newIds,
+      selectedNodeId: newIds.length === 1 ? newIds[0] : (newIds.length > 0 ? newIds[0] : null),
+    });
+  },
+
+  clearSelection: () => set({
+    selectedNodeId: null,
+    selectedNodeIds: [],
+  }),
 
   addRootNode: () => {
     get().saveToHistory();
@@ -157,6 +209,18 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
     get().saveToLocalStorage();
   },
 
+  updateSelectedNodes: (updates) => {
+    const { selectedNodeIds } = get();
+    if (selectedNodeIds.length === 0) return;
+    get().saveToHistory();
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        selectedNodeIds.includes(n.id) ? { ...n, ...updates } : n
+      ),
+    }));
+    get().saveToLocalStorage();
+  },
+
   deleteNode: (id) => {
     get().saveToHistory();
     const nodesToDelete = new Set<string>();
@@ -177,9 +241,49 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
           state.selectedNodeId && nodesToDelete.has(state.selectedNodeId)
             ? null
             : state.selectedNodeId,
+        selectedNodeIds: state.selectedNodeIds.filter((nid) => !nodesToDelete.has(nid)),
       };
     });
     get().saveToLocalStorage();
+  },
+
+  deleteSelectedNodes: () => {
+    const { selectedNodeIds } = get();
+    if (selectedNodeIds.length === 0) return;
+    get().saveToHistory();
+    
+    const nodesToDelete = new Set<string>();
+    const collectDescendants = (nodeId: string) => {
+      nodesToDelete.add(nodeId);
+      get()
+        .getChildNodes(nodeId)
+        .forEach((child) => collectDescendants(child.id));
+    };
+    selectedNodeIds.forEach((id) => collectDescendants(id));
+
+    set((state) => {
+      const newNodes = state.nodes.filter((n) => !nodesToDelete.has(n.id));
+      return {
+        nodes: newNodes,
+        edges: deriveEdges(newNodes),
+        selectedNodeId: null,
+        selectedNodeIds: [],
+      };
+    });
+    get().saveToLocalStorage();
+  },
+
+  moveSelectedNodes: (deltaX, deltaY) => {
+    const { selectedNodeIds } = get();
+    if (selectedNodeIds.length === 0) return;
+    
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        selectedNodeIds.includes(n.id)
+          ? { ...n, position: { x: n.position.x + deltaX, y: n.position.y + deltaY } }
+          : n
+      ),
+    }));
   },
 
   setNodePositions: (positions) => {
@@ -287,6 +391,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       nodes: [],
       edges: [],
       selectedNodeId: null,
+      selectedNodeIds: [],
       diagramName: 'Untitled Diagram',
       history: [],
       historyIndex: -1,
@@ -298,4 +403,8 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   getChildNodes: (parentId) =>
     get().nodes.filter((n) => n.parentId === parentId),
   getRootNodes: () => get().nodes.filter((n) => n.parentId === null),
+  getSelectedNodes: () => {
+    const { nodes, selectedNodeIds } = get();
+    return nodes.filter((n) => selectedNodeIds.includes(n.id));
+  },
 }));

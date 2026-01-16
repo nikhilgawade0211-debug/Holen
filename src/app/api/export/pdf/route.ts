@@ -1,64 +1,72 @@
 import { NextRequest, NextResponse } from 'next/server';
-import puppeteer from 'puppeteer';
+import { PDFDocument } from 'pdf-lib';
+
+export const runtime = 'nodejs';
 
 export async function POST(request: NextRequest) {
   try {
-    const { svg, name } = await request.json();
+    const { imageBase64, name, width, height } = await request.json();
 
-    if (!svg) {
-      return NextResponse.json({ error: 'SVG content is required' }, { status: 400 });
+    if (!imageBase64) {
+      return NextResponse.json({ error: 'Image data is required' }, { status: 400 });
     }
 
-    const html = `<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="UTF-8">
-  <style>
-    body {
-      margin: 0;
-      padding: 20px;
-      display: flex;
-      justify-content: center;
-      align-items: flex-start;
-      background: white;
+    // Create a new PDF document
+    const pdfDoc = await PDFDocument.create();
+    
+    // Calculate page size based on image aspect ratio
+    // Use A4 as base but adjust to fit the diagram
+    const imgWidth = width || 800;
+    const imgHeight = height || 600;
+    const aspectRatio = imgWidth / imgHeight;
+    
+    // Page dimensions (in points, 72 points per inch)
+    let pageWidth = 842; // A4 landscape width
+    let pageHeight = 595; // A4 landscape height
+    
+    // Adjust to match aspect ratio
+    if (aspectRatio > pageWidth / pageHeight) {
+      pageHeight = pageWidth / aspectRatio;
+    } else {
+      pageWidth = pageHeight * aspectRatio;
     }
-    .container {
-      text-align: center;
-    }
-    h1 {
-      margin: 0 0 20px 0;
-      font-family: system-ui, sans-serif;
-      font-size: 24px;
-      color: #333;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <h1>${name || 'Diagram'}</h1>
-    ${svg}
-  </div>
-</body>
-</html>`;
+    
+    // Add some padding
+    const padding = 40;
+    pageWidth += padding * 2;
+    pageHeight += padding * 2;
 
-    const browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+    const page = pdfDoc.addPage([pageWidth, pageHeight]);
+
+    // Embed the PNG image
+    const imageBytes = Buffer.from(imageBase64, 'base64');
+    const pngImage = await pdfDoc.embedPng(imageBytes);
+
+    // Draw the image centered with padding
+    const drawWidth = pageWidth - padding * 2;
+    const drawHeight = pageHeight - padding * 2;
+    
+    page.drawImage(pngImage, {
+      x: padding,
+      y: padding,
+      width: drawWidth,
+      height: drawHeight,
     });
 
-    const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    // Add title if provided
+    if (name) {
+      const { rgb } = await import('pdf-lib');
+      page.drawText(name, {
+        x: padding,
+        y: pageHeight - 25,
+        size: 16,
+        color: rgb(0.2, 0.2, 0.2),
+      });
+    }
 
-    const pdf = await page.pdf({
-      format: 'A4',
-      landscape: true,
-      printBackground: true,
-      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
-    });
+    const pdfBytes = await pdfDoc.save();
 
-    await browser.close();
-
-    return new NextResponse(Buffer.from(pdf), {
+    return new NextResponse(Buffer.from(pdfBytes), {
       headers: {
         'Content-Type': 'application/pdf',
         'Content-Disposition': `attachment; filename="${name || 'diagram'}.pdf"`,

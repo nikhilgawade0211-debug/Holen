@@ -1,20 +1,29 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import { useDiagramStore } from '@/store/diagramStore';
 import { applyDagreLayout } from '@/services/layoutService';
-import { exportToSVG, exportToPNG, exportToHTML } from '@/services/exportService';
+import { 
+  exportToSVG, 
+  exportToPNG, 
+  exportToJPEG, 
+  exportToWebP, 
+  exportToHTML 
+} from '@/services/exportService';
+import { ExportQuality } from '@/types/diagram';
 import { saveAs } from 'file-saver';
 
 export default function Toolbar() {
   const {
     nodes,
     selectedNodeId,
+    selectedNodeIds,
     diagramName,
     addRootNode,
     addChildNode,
     addSiblingNode,
     deleteNode,
+    deleteSelectedNodes,
     setNodePositions,
     setDiagramName,
     undo,
@@ -26,8 +35,14 @@ export default function Toolbar() {
     historyIndex,
   } = useDiagramStore();
 
+  const [exportQuality, setExportQuality] = useState<ExportQuality>('high');
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
+  const hasSelection = selectedNodeIds.length > 0;
+  const firstSelectedId = selectedNodeIds[0] || selectedNodeId;
 
   const handleAutoLayout = () => {
     if (nodes.length === 0) return;
@@ -63,37 +78,94 @@ export default function Toolbar() {
   };
 
   const handleExportSVG = async () => {
-    const svg = await exportToSVG();
-    if (svg) {
-      const blob = new Blob([svg], { type: 'image/svg+xml' });
-      saveAs(blob, `${diagramName.replace(/\s+/g, '_')}.svg`);
+    setIsExporting(true);
+    try {
+      const svg = await exportToSVG();
+      if (svg) {
+        const blob = new Blob([svg], { type: 'image/svg+xml' });
+        saveAs(blob, `${diagramName.replace(/\s+/g, '_')}.svg`);
+      }
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
     }
   };
 
   const handleExportPNG = async () => {
-    const dataUrl = await exportToPNG();
-    if (dataUrl) {
-      saveAs(dataUrl, `${diagramName.replace(/\s+/g, '_')}.png`);
+    setIsExporting(true);
+    try {
+      const dataUrl = await exportToPNG(exportQuality);
+      if (dataUrl) {
+        saveAs(dataUrl, `${diagramName.replace(/\s+/g, '_')}.png`);
+      }
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
+    }
+  };
+
+  const handleExportJPEG = async () => {
+    setIsExporting(true);
+    try {
+      const dataUrl = await exportToJPEG(exportQuality);
+      if (dataUrl) {
+        saveAs(dataUrl, `${diagramName.replace(/\s+/g, '_')}.jpg`);
+      }
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
+    }
+  };
+
+  const handleExportWebP = async () => {
+    setIsExporting(true);
+    try {
+      const dataUrl = await exportToWebP(exportQuality);
+      if (dataUrl) {
+        saveAs(dataUrl, `${diagramName.replace(/\s+/g, '_')}.webp`);
+      }
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
     }
   };
 
   const handleExportHTML = async () => {
-    const html = await exportToHTML(diagramName);
-    if (html) {
-      const blob = new Blob([html], { type: 'text/html' });
-      saveAs(blob, `${diagramName.replace(/\s+/g, '_')}.html`);
+    setIsExporting(true);
+    try {
+      const html = await exportToHTML(diagramName);
+      if (html) {
+        const blob = new Blob([html], { type: 'text/html' });
+        saveAs(blob, `${diagramName.replace(/\s+/g, '_')}.html`);
+      }
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
     }
   };
 
   const handleExportPDF = async () => {
+    setIsExporting(true);
     try {
-      const svg = await exportToSVG();
-      if (!svg) return;
+      const dataUrl = await exportToPNG(exportQuality);
+      if (!dataUrl) return;
+
+      // Get image dimensions
+      const img = new Image();
+      img.src = dataUrl;
+      await new Promise((resolve) => { img.onload = resolve; });
+
+      const base64 = dataUrl.split(',')[1];
 
       const response = await fetch('/api/export/pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ svg, name: diagramName }),
+        body: JSON.stringify({ 
+          imageBase64: base64, 
+          name: diagramName,
+          width: img.width,
+          height: img.height,
+        }),
       });
 
       if (response.ok) {
@@ -105,15 +177,18 @@ export default function Toolbar() {
     } catch (err) {
       console.error(err);
       alert('PDF export failed');
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
     }
   };
 
   const handleExportDOCX = async () => {
+    setIsExporting(true);
     try {
-      const dataUrl = await exportToPNG();
+      const dataUrl = await exportToPNG(exportQuality);
       if (!dataUrl) return;
 
-      // Convert data URL to base64
       const base64 = dataUrl.split(',')[1];
 
       const response = await fetch('/api/export/docx', {
@@ -131,139 +206,255 @@ export default function Toolbar() {
     } catch (err) {
       console.error(err);
       alert('DOCX export failed');
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
     }
   };
 
+  const handleDelete = () => {
+    if (selectedNodeIds.length > 1) {
+      deleteSelectedNodes();
+    } else if (firstSelectedId) {
+      deleteNode(firstSelectedId);
+    }
+  };
+
+  const buttonBase = "px-3 py-1.5 text-sm font-medium rounded-lg transition-all duration-200 ease-out transform active:scale-95 focus:outline-none focus:ring-2 focus:ring-offset-1";
+  const primaryBtn = `${buttonBase} bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700 focus:ring-blue-400 shadow-sm hover:shadow`;
+  const successBtn = `${buttonBase} bg-gradient-to-r from-emerald-500 to-emerald-600 text-white hover:from-emerald-600 hover:to-emerald-700 focus:ring-emerald-400 shadow-sm hover:shadow`;
+  const dangerBtn = `${buttonBase} bg-gradient-to-r from-red-500 to-red-600 text-white hover:from-red-600 hover:to-red-700 focus:ring-red-400 shadow-sm hover:shadow`;
+  const secondaryBtn = `${buttonBase} bg-white text-slate-700 border border-slate-300 hover:bg-slate-50 hover:border-slate-400 focus:ring-slate-400`;
+  const disabledClass = "opacity-50 cursor-not-allowed hover:shadow-none";
+
   return (
-    <div className="flex flex-wrap items-center gap-2 p-3 bg-gray-100 border-b border-gray-300">
+    <div className="flex flex-wrap items-center gap-2 px-4 py-3 bg-white/80 backdrop-blur-sm border-b border-slate-200 shadow-sm">
       {/* Diagram name */}
       <input
         type="text"
         value={diagramName}
         onChange={(e) => setDiagramName(e.target.value)}
-        className="px-2 py-1 border rounded text-sm font-medium w-48"
+        className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-medium w-48 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all"
       />
 
-      <div className="w-px h-6 bg-gray-300" />
+      <div className="w-px h-6 bg-slate-200" />
 
       {/* Node operations */}
-      <button
-        onClick={addRootNode}
-        className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
-      >
-        + Root
-      </button>
-      <button
-        onClick={() => selectedNodeId && addChildNode(selectedNodeId)}
-        disabled={!selectedNodeId}
-        className="px-3 py-1.5 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        + Child
-      </button>
-      <button
-        onClick={() => selectedNodeId && addSiblingNode(selectedNodeId)}
-        disabled={!selectedNodeId}
-        className="px-3 py-1.5 bg-teal-600 text-white text-sm rounded hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        + Sibling
-      </button>
-      <button
-        onClick={() => selectedNodeId && deleteNode(selectedNodeId)}
-        disabled={!selectedNodeId}
-        className="px-3 py-1.5 bg-red-600 text-white text-sm rounded hover:bg-red-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Delete
-      </button>
+      <div className="flex items-center gap-1.5">
+        <button onClick={addRootNode} className={primaryBtn}>
+          <span className="flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+            Root
+          </span>
+        </button>
+        <button
+          onClick={() => firstSelectedId && addChildNode(firstSelectedId)}
+          disabled={!firstSelectedId}
+          className={`${successBtn} ${!firstSelectedId ? disabledClass : ''}`}
+        >
+          + Child
+        </button>
+        <button
+          onClick={() => firstSelectedId && addSiblingNode(firstSelectedId)}
+          disabled={!firstSelectedId}
+          className={`${secondaryBtn} ${!firstSelectedId ? disabledClass : ''}`}
+        >
+          + Sibling
+        </button>
+        <button
+          onClick={handleDelete}
+          disabled={!hasSelection && !firstSelectedId}
+          className={`${dangerBtn} ${!hasSelection && !firstSelectedId ? disabledClass : ''}`}
+        >
+          {selectedNodeIds.length > 1 ? `Delete (${selectedNodeIds.length})` : 'Delete'}
+        </button>
+      </div>
 
-      <div className="w-px h-6 bg-gray-300" />
+      <div className="w-px h-6 bg-slate-200" />
 
-      {/* Layout */}
-      <button
-        onClick={handleAutoLayout}
-        disabled={nodes.length === 0}
-        className="px-3 py-1.5 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Auto Layout
-      </button>
+      {/* Layout & History */}
+      <div className="flex items-center gap-1.5">
+        <button
+          onClick={handleAutoLayout}
+          disabled={nodes.length === 0}
+          className={`${secondaryBtn} ${nodes.length === 0 ? disabledClass : ''}`}
+        >
+          <span className="flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zM16 13a1 1 0 011-1h2a1 1 0 011 1v6a1 1 0 01-1 1h-2a1 1 0 01-1-1v-6z" />
+            </svg>
+            Layout
+          </span>
+        </button>
+        <button
+          onClick={undo}
+          disabled={!canUndo}
+          className={`${secondaryBtn} ${!canUndo ? disabledClass : ''}`}
+          title="Undo"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6" />
+          </svg>
+        </button>
+        <button
+          onClick={redo}
+          disabled={!canRedo}
+          className={`${secondaryBtn} ${!canRedo ? disabledClass : ''}`}
+          title="Redo"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 10h-10a8 8 0 00-8 8v2M21 10l-6 6m6-6l-6-6" />
+          </svg>
+        </button>
+      </div>
 
-      {/* Undo/Redo */}
-      <button
-        onClick={undo}
-        disabled={!canUndo}
-        className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Undo
-      </button>
-      <button
-        onClick={redo}
-        disabled={!canRedo}
-        className="px-3 py-1.5 bg-gray-600 text-white text-sm rounded hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Redo
-      </button>
-
-      <div className="w-px h-6 bg-gray-300" />
+      <div className="w-px h-6 bg-slate-200" />
 
       {/* Save/Load */}
-      <button
-        onClick={handleExportJSON}
-        className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700"
-      >
-        Save JSON
-      </button>
-      <button
-        onClick={handleImportJSON}
-        className="px-3 py-1.5 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700"
-      >
-        Load JSON
-      </button>
-      <button
-        onClick={clearDiagram}
-        className="px-3 py-1.5 bg-gray-500 text-white text-sm rounded hover:bg-gray-600"
-      >
-        Clear
-      </button>
-
-      <div className="w-px h-6 bg-gray-300" />
-
-      {/* Export formats */}
-      <div className="relative group">
-        <button className="px-3 py-1.5 bg-orange-600 text-white text-sm rounded hover:bg-orange-700">
-          Export ▼
+      <div className="flex items-center gap-1.5">
+        <button onClick={handleExportJSON} className={secondaryBtn}>
+          Save
         </button>
-        <div className="absolute top-full left-0 mt-1 bg-white border rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all z-50 min-w-[120px]">
-          <button
-            onClick={handleExportSVG}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-          >
-            SVG
-          </button>
-          <button
-            onClick={handleExportPNG}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-          >
-            PNG
-          </button>
-          <button
-            onClick={handleExportHTML}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-          >
-            HTML
-          </button>
-          <button
-            onClick={handleExportPDF}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-          >
-            PDF
-          </button>
-          <button
-            onClick={handleExportDOCX}
-            className="block w-full text-left px-4 py-2 text-sm hover:bg-gray-100"
-          >
-            DOCX
-          </button>
-        </div>
+        <button onClick={handleImportJSON} className={secondaryBtn}>
+          Load
+        </button>
+        <button onClick={clearDiagram} className={`${secondaryBtn} text-slate-500`}>
+          Clear
+        </button>
       </div>
+
+      <div className="w-px h-6 bg-slate-200" />
+
+      {/* Export menu */}
+      <div className="relative">
+        <button 
+          onClick={() => setShowExportMenu(!showExportMenu)}
+          className={`${buttonBase} bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 focus:ring-orange-400 shadow-sm hover:shadow`}
+        >
+          <span className="flex items-center gap-1">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+            </svg>
+            Export
+            <svg className={`w-3 h-3 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </span>
+        </button>
+        
+        {showExportMenu && (
+          <>
+            <div 
+              className="fixed inset-0 z-40" 
+              onClick={() => setShowExportMenu(false)}
+            />
+            <div className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl z-50 min-w-[200px] overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+              {/* Quality selector */}
+              <div className="px-3 py-2 border-b border-slate-100 bg-slate-50">
+                <label className="block text-xs font-medium text-slate-500 mb-1">Quality</label>
+                <div className="flex gap-1">
+                  {(['low', 'medium', 'high'] as ExportQuality[]).map((q) => (
+                    <button
+                      key={q}
+                      onClick={() => setExportQuality(q)}
+                      className={`flex-1 px-2 py-1 text-xs rounded-md transition-all ${
+                        exportQuality === q 
+                          ? 'bg-blue-500 text-white' 
+                          : 'bg-white text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      {q.charAt(0).toUpperCase() + q.slice(1)}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              
+              {/* Export options */}
+              <div className="py-1">
+                <div className="px-3 py-1 text-xs font-medium text-slate-400">Images</div>
+                <button
+                  onClick={handleExportPNG}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold">P</span>
+                  PNG (Transparent)
+                </button>
+                <button
+                  onClick={handleExportJPEG}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">J</span>
+                  JPEG (Smaller)
+                </button>
+                <button
+                  onClick={handleExportWebP}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold">W</span>
+                  WebP (Modern)
+                </button>
+                <button
+                  onClick={handleExportSVG}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-bold">S</span>
+                  SVG (Vector)
+                </button>
+                
+                <div className="my-1 border-t border-slate-100" />
+                <div className="px-3 py-1 text-xs font-medium text-slate-400">Documents</div>
+                <button
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold">P</span>
+                  PDF
+                </button>
+                <button
+                  onClick={handleExportDOCX}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">D</span>
+                  DOCX
+                </button>
+                <button
+                  onClick={handleExportHTML}
+                  disabled={isExporting}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  <span className="w-6 h-6 rounded bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold">H</span>
+                  HTML
+                </button>
+              </div>
+              
+              {isExporting && (
+                <div className="px-3 py-2 border-t border-slate-100 bg-blue-50 text-blue-600 text-xs flex items-center gap-2">
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Exporting...
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
+      
+      {/* Selection indicator */}
+      {selectedNodeIds.length > 1 && (
+        <div className="ml-auto px-3 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full animate-in fade-in duration-200">
+          {selectedNodeIds.length} nodes selected
+        </div>
+      )}
     </div>
   );
 }

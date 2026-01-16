@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   ReactFlow,
   Background,
@@ -15,6 +15,8 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   NodeTypes,
+  SelectionMode,
+  OnSelectionChangeParams,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -29,10 +31,14 @@ export default function DiagramCanvas() {
   const {
     nodes: diagramNodes,
     edges: diagramEdges,
-    selectedNodeId,
+    selectedNodeIds,
     setSelectedNode,
+    setSelectedNodes,
     updateNode,
+    moveSelectedNodes,
   } = useDiagramStore();
+
+  const lastDragPos = useRef<{ x: number; y: number } | null>(null);
 
   // Convert diagram nodes to React Flow nodes
   const rfNodes: Node<NodeCardData>[] = useMemo(
@@ -43,12 +49,13 @@ export default function DiagramCanvas() {
         position: node.position,
         data: {
           node,
-          isSelected: node.id === selectedNodeId,
+          isSelected: selectedNodeIds.includes(node.id),
         },
+        selected: selectedNodeIds.includes(node.id),
         draggable: true,
         selectable: true,
       })),
-    [diagramNodes, selectedNodeId]
+    [diagramNodes, selectedNodeIds]
   );
 
   // Convert diagram edges to React Flow edges
@@ -59,7 +66,8 @@ export default function DiagramCanvas() {
         source: edge.source,
         target: edge.target,
         type: edge.type,
-        style: { stroke: '#333', strokeWidth: 2 },
+        style: { stroke: '#64748b', strokeWidth: 2 },
+        animated: false,
       })),
     [diagramEdges]
   );
@@ -99,16 +107,32 @@ export default function DiagramCanvas() {
     [setEdges]
   );
 
+  // Handle selection changes from React Flow (marquee + ctrl/cmd click)
+  const onSelectionChange = useCallback(
+    ({ nodes: selectedNodes }: OnSelectionChangeParams) => {
+      const ids = selectedNodes.map((n) => n.id);
+      setSelectedNodes(ids);
+    },
+    [setSelectedNodes]
+  );
+
   const onNodeClick = useCallback(
-    (_: React.MouseEvent, node: Node) => {
-      setSelectedNode(node.id);
+    (event: React.MouseEvent, node: Node) => {
+      // Ctrl/Cmd click toggles selection
+      if (event.ctrlKey || event.metaKey) {
+        const { toggleNodeSelection } = useDiagramStore.getState();
+        toggleNodeSelection(node.id);
+      } else {
+        setSelectedNode(node.id);
+      }
     },
     [setSelectedNode]
   );
 
   const onPaneClick = useCallback(() => {
-    setSelectedNode(null);
-  }, [setSelectedNode]);
+    const { clearSelection } = useDiagramStore.getState();
+    clearSelection();
+  }, []);
 
   return (
     <div className="w-full h-full" id="diagram-canvas">
@@ -119,20 +143,27 @@ export default function DiagramCanvas() {
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         onPaneClick={onPaneClick}
+        onSelectionChange={onSelectionChange}
         nodeTypes={nodeTypes}
+        selectionMode={SelectionMode.Partial}
+        selectionOnDrag
+        panOnDrag={[1, 2]} // Pan with middle or right mouse button
+        selectNodesOnDrag={false}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.1}
         maxZoom={2}
+        className="bg-gradient-to-br from-slate-50 to-slate-100"
       >
-        <Background color="#e5e5e5" gap={20} />
-        <Controls />
+        <Background color="#cbd5e1" gap={20} size={1} />
+        <Controls className="!bg-white !shadow-lg !border !border-slate-200 !rounded-lg" />
         <MiniMap
           nodeStrokeWidth={3}
           nodeColor={(node) => {
             const data = node.data as NodeCardData;
             return data?.node?.style?.fill || '#fff';
           }}
+          className="!bg-white !shadow-lg !border !border-slate-200 !rounded-lg"
         />
       </ReactFlow>
     </div>

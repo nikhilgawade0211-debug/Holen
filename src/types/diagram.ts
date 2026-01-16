@@ -1,5 +1,20 @@
 // Diagram data types matching CLAUDE.md spec
 
+export interface TextStyle {
+  bold: boolean;
+  italic: boolean;
+  underline: boolean;
+  fontSize: 'xs' | 'sm' | 'base' | 'lg' | 'xl';
+  align: 'left' | 'center' | 'right';
+}
+
+export interface BoxStyle {
+  borderWidth: 1 | 2 | 3 | 4;
+  borderStyle: 'solid' | 'dashed' | 'dotted';
+  borderRadius: 'none' | 'sm' | 'md' | 'lg' | 'full';
+  shadow: 'none' | 'sm' | 'md' | 'lg';
+}
+
 export interface NodeStyle {
   fill: string;
   border: string;
@@ -23,6 +38,8 @@ export interface DiagramNode {
   badge?: string;
   badgeConfig?: BadgeConfig;
   style: NodeStyle;
+  textStyle?: TextStyle;
+  boxStyle?: BoxStyle;
   width: number;
   height: number;
   position: { x: number; y: number };
@@ -45,6 +62,24 @@ export interface DiagramData {
     updatedAt: string;
   };
 }
+
+export type ExportQuality = 'low' | 'medium' | 'high';
+export type ExportFormat = 'png' | 'jpeg' | 'webp' | 'svg';
+
+export const DEFAULT_TEXT_STYLE: TextStyle = {
+  bold: false,
+  italic: false,
+  underline: false,
+  fontSize: 'sm',
+  align: 'center',
+};
+
+export const DEFAULT_BOX_STYLE: BoxStyle = {
+  borderWidth: 2,
+  borderStyle: 'solid',
+  borderRadius: 'sm',
+  shadow: 'sm',
+};
 
 // Color presets matching the image style
 export const COLOR_PRESETS: { name: string; style: NodeStyle }[] = [

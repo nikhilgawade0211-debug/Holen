@@ -10,8 +10,11 @@ import { useDiagramStore } from '@/store/diagramStore';
 const DiagramCanvas = dynamic(() => import('@/components/DiagramCanvas'), {
   ssr: false,
   loading: () => (
-    <div className="flex-1 flex items-center justify-center bg-gray-100">
-      <div className="text-gray-500">Loading diagram editor...</div>
+    <div className="flex-1 flex items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-10 h-10 border-3 border-blue-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-slate-500 text-sm font-medium">Loading canvas...</p>
+      </div>
     </div>
   ),
 });
@@ -27,14 +30,17 @@ export default function HomePage() {
 
   if (!mounted) {
     return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-gray-500">Loading...</div>
+      <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 to-slate-100">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin" />
+          <p className="text-slate-600 font-medium">Loading Holen...</p>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-screen">
+    <div className="flex flex-col h-screen bg-slate-50">
       {/* Toolbar */}
       <Toolbar />
 
