@@ -50,6 +50,7 @@ interface DiagramStore {
   moveSelectedNodes: (deltaX: number, deltaY: number) => void;
   setSelectedEdge: (id: string | null) => void;
   updateEdge: (id: string, updates: Partial<DiagramEdge>) => void;
+  reconnectEdge: (edgeId: string, newTargetId: string) => void;
   deleteEdge: (id: string) => void;
   setNodePositions: (positions: { id: string; x: number; y: number }[]) => void;
   setDiagramName: (name: string) => void;
@@ -309,6 +310,49 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       edges: state.edges.map((e) =>
         e.id === id ? { ...e, ...updates } : e
       ),
+    }));
+    get().saveToLocalStorage();
+  },
+
+  reconnectEdge: (edgeId, newTargetId) => {
+    get().saveToHistory();
+    const edge = get().edges.find((e) => e.id === edgeId);
+    if (!edge) return;
+    
+    const oldTargetId = edge.target;
+    const sourceId = edge.source;
+    
+    // Don't allow self-connections
+    if (sourceId === newTargetId) return;
+    
+    // Don't allow if target already has a parent (would create multiple parents)
+    const targetNode = get().nodes.find((n) => n.id === newTargetId);
+    if (targetNode && targetNode.parentId && targetNode.parentId !== sourceId) return;
+    
+    // Update: remove old parent reference, add new one
+    set((state) => ({
+      nodes: state.nodes.map((n) => {
+        if (n.id === oldTargetId) {
+          // Remove parent from old target
+          return { ...n, parentId: null };
+        }
+        if (n.id === newTargetId) {
+          // Set parent on new target
+          return { ...n, parentId: sourceId };
+        }
+        return n;
+      }),
+      edges: state.edges.map((e) => {
+        if (e.id === edgeId) {
+          return {
+            ...e,
+            id: `edge-${sourceId}-${newTargetId}`,
+            target: newTargetId,
+          };
+        }
+        return e;
+      }),
+      selectedEdgeId: `edge-${sourceId}-${newTargetId}`,
     }));
     get().saveToLocalStorage();
   },

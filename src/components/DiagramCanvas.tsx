@@ -17,6 +17,7 @@ import {
   NodeTypes,
   SelectionMode,
   OnSelectionChangeParams,
+  Connection,
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
 
@@ -37,6 +38,7 @@ export default function DiagramCanvas() {
     setSelectedNodes,
     setSelectedEdge,
     updateNode,
+    reconnectEdge,
     moveSelectedNodes,
   } = useDiagramStore();
 
@@ -78,6 +80,7 @@ export default function DiagramCanvas() {
         pathOptions: { offset: 20, borderRadius: 8 },
         animated: edge.style?.animated || false,
         selected: edge.id === selectedEdgeId,
+        reconnectable: true,
       })),
     [diagramEdges, selectedEdgeId]
   );
@@ -152,6 +155,16 @@ export default function DiagramCanvas() {
     [setSelectedEdge]
   );
 
+  // Handle edge reconnection (drag edge to new target)
+  const onReconnect = useCallback(
+    (oldEdge: Edge, newConnection: Connection) => {
+      if (newConnection.target && newConnection.target !== oldEdge.target) {
+        reconnectEdge(oldEdge.id, newConnection.target);
+      }
+    },
+    [reconnectEdge]
+  );
+
   return (
     <div className="w-full h-full" id="diagram-canvas">
       <ReactFlow
@@ -161,6 +174,7 @@ export default function DiagramCanvas() {
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
         onEdgeClick={onEdgeClick}
+        onReconnect={onReconnect}
         onPaneClick={onPaneClick}
         onSelectionChange={onSelectionChange}
         nodeTypes={nodeTypes}
