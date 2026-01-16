@@ -77,7 +77,10 @@ export default function DiagramCanvas() {
           strokeWidth: edge.style?.strokeWidth || 2,
           cursor: 'pointer',
         },
-        pathOptions: { offset: 20, borderRadius: 8 },
+        pathOptions: { 
+          offset: edge.style?.offset ?? 5, // Compact by default
+          borderRadius: edge.style?.borderRadius ?? 4,
+        },
         animated: edge.style?.animated || false,
         selected: edge.id === selectedEdgeId,
         reconnectable: true,

@@ -49,6 +49,8 @@ export interface EdgeStyle {
   stroke: string;
   strokeWidth: number;
   animated: boolean;
+  offset: number;      // Path offset from nodes (lower = more compact)
+  borderRadius: number; // Corner radius for smoothstep edges
 }
 
 export interface DiagramEdge {
@@ -63,6 +65,8 @@ export const DEFAULT_EDGE_STYLE: EdgeStyle = {
   stroke: '#64748b',
   strokeWidth: 2,
   animated: false,
+  offset: 5,        // Compact spacing
+  borderRadius: 4,  // Subtle corners
 };
 
 export interface DiagramData {

@@ -447,6 +447,42 @@ function EdgeInspector({ edge, updateEdge, deleteEdge }: EdgeInspectorProps) {
           </div>
         </div>
 
+        {/* Path Spacing (Compactness) */}
+        <div className={sectionClass}>
+          <label className={labelClass}>Path Spacing</label>
+          <div className="flex items-center gap-3">
+            <span className="text-xs text-slate-500">Compact</span>
+            <input
+              type="range"
+              min="0"
+              max="50"
+              value={edgeStyle.offset ?? 5}
+              onChange={(e) => handleStyleChange('offset', parseInt(e.target.value))}
+              className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
+            />
+            <span className="text-xs text-slate-500">Spread</span>
+          </div>
+          <div className="text-center text-xs text-slate-400 mt-1">
+            {edgeStyle.offset ?? 5}px
+          </div>
+        </div>
+
+        {/* Corner Radius */}
+        <div className={sectionClass}>
+          <label className={labelClass}>Corner Radius</label>
+          <div className="flex gap-1">
+            {([0, 4, 8, 16, 24] as const).map((radius) => (
+              <button
+                key={radius}
+                onClick={() => handleStyleChange('borderRadius', radius)}
+                className={toggleBtnClass((edgeStyle.borderRadius ?? 4) === radius)}
+              >
+                {radius === 0 ? 'Sharp' : `${radius}px`}
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Delete Edge */}
         <div className={sectionClass}>
           <button
