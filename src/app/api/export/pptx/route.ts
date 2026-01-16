@@ -179,19 +179,33 @@ export async function POST(request: NextRequest) {
     const bounds = calculateBounds(nodes);
     const nodesMap = new Map(nodes.map(n => [n.id, n]));
     
-    // Slide dimensions (in inches) - widescreen
+    // Slide dimensions (in inches) - widescreen 16:9
     const slideWidth = 13.333;
     const slideHeight = 7.5;
-    const margin = 0.5;
+    const margin = 0.4;
+    const titleHeight = 0.7;
+    const footerHeight = 0.3;
     const availableWidth = slideWidth - (margin * 2);
-    const availableHeight = slideHeight - (margin * 2) - 1; // Leave space for title
+    const availableHeight = slideHeight - titleHeight - footerHeight - (margin * 2);
     
-    // Calculate scale to fit diagram on slide
-    const scaleX = bounds.width > 0 ? availableWidth / bounds.width : 1;
-    const scaleY = bounds.height > 0 ? availableHeight / bounds.height : 1;
-    const scale = Math.min(scaleX, scaleY, 0.015); // Max scale to convert pixels to inches
+    // Calculate scale to fit diagram compactly on slide
+    // We want the diagram to fill the available space while maintaining aspect ratio
+    const diagramAspect = bounds.width / bounds.height;
+    const slideAspect = availableWidth / availableHeight;
     
-    // Pixel to inch conversion (assuming ~96 DPI canvas, scaled down)
+    let scale: number;
+    if (diagramAspect > slideAspect) {
+      // Diagram is wider - fit to width
+      scale = availableWidth / bounds.width;
+    } else {
+      // Diagram is taller - fit to height
+      scale = availableHeight / bounds.height;
+    }
+    
+    // Apply a slight reduction to add padding around the diagram
+    scale *= 0.9;
+    
+    // Pixel to inch conversion
     const pxToInch = (px: number) => px * scale;
     
     // ==========================================
@@ -201,21 +215,21 @@ export async function POST(request: NextRequest) {
     
     // Add title
     slide1.addText(name || 'Organization Chart', {
-      x: 0.5,
-      y: 0.3,
-      w: slideWidth - 1,
+      x: margin,
+      y: 0.15,
+      w: slideWidth - (margin * 2),
       h: 0.5,
-      fontSize: 24,
+      fontSize: 20,
       bold: true,
       color: '1e3a5f',
       align: 'center',
     });
     
-    // Calculate offset to center diagram
+    // Calculate offset to center diagram in available space
     const diagramWidth = bounds.width * scale;
     const diagramHeight = bounds.height * scale;
     const offsetX = margin + (availableWidth - diagramWidth) / 2;
-    const offsetY = 1 + (availableHeight - diagramHeight) / 2;
+    const offsetY = titleHeight + margin + (availableHeight - diagramHeight) / 2;
     
     // Draw edges/connectors first (behind nodes)
     edges.forEach(edge => {
@@ -230,7 +244,7 @@ export async function POST(request: NextRequest) {
         const targetY = offsetY + pxToInch(targetNode.position.y - bounds.minY);
         
         const strokeColor = edge.style?.stroke?.replace('#', '') || '64748b';
-        const strokeWidth = (edge.style?.strokeWidth || 2) * 0.5;
+        const strokeWidth = Math.max(0.5, (edge.style?.strokeWidth || 2) * scale * 15);
         
         // Draw vertical line from source bottom
         const midY = (sourceY + targetY) / 2;
@@ -276,6 +290,13 @@ export async function POST(request: NextRequest) {
       const textStyle = node.textStyle;
       const boxStyle = node.boxStyle;
       
+      // Calculate font sizes relative to box size
+      // Base the font size on the smaller of width or height to ensure it fits
+      const baseFontSize = Math.min(w * 8, h * 4, 14); // Max 14pt, scaled to box
+      const titleFontSize = Math.max(6, Math.min(baseFontSize, 14));
+      const subtitleFontSize = Math.max(5, titleFontSize - 2);
+      const badgeFontSize = Math.max(5, titleFontSize - 3);
+      
       // Node background shape
       slide1.addShape('rect', {
         x,
@@ -285,15 +306,15 @@ export async function POST(request: NextRequest) {
         fill: { color: hexToPptx(node.style.fill) },
         line: {
           color: hexToPptx(node.style.border),
-          width: (boxStyle?.borderWidth || 2) * 0.5,
+          width: Math.max(0.5, (boxStyle?.borderWidth || 2) * scale * 10),
           dashType: getBorderDash(boxStyle?.borderStyle),
         },
         shadow: boxStyle?.shadow !== 'none' ? {
           type: 'outer',
-          blur: 3,
-          offset: 2,
+          blur: 2,
+          offset: 1,
           angle: 45,
-          opacity: 0.3,
+          opacity: 0.2,
           color: '000000',
         } : undefined,
       });
@@ -320,7 +341,7 @@ export async function POST(request: NextRequest) {
           y: badgeY,
           w: badgeW,
           h: badgeH,
-          fontSize: 7,
+          fontSize: badgeFontSize,
           bold: true,
           color: hexToPptx(node.style.badgeTextColor),
           align: 'center',
@@ -330,13 +351,16 @@ export async function POST(request: NextRequest) {
       
       // Title text
       const titleText = node.title || 'Untitled';
-      const titleFontSize = getFontSize(textStyle?.fontSize);
+      
+      // If there's a subtitle, position title higher
+      const titleY = node.subtitle ? y + h * 0.15 : y + h * 0.1;
+      const titleH = node.subtitle ? h * 0.45 : h * 0.8;
       
       slide1.addText(titleText, {
-        x,
-        y: y + (node.subtitle ? h * 0.2 : h * 0.3),
-        w,
-        h: h * 0.4,
+        x: x + w * 0.05,
+        y: titleY,
+        w: w * 0.9,
+        h: titleH,
         fontSize: titleFontSize,
         bold: textStyle?.bold ?? true,
         italic: textStyle?.italic ?? false,
@@ -344,30 +368,32 @@ export async function POST(request: NextRequest) {
         color: hexToPptx(node.style.textColor),
         align: getTextAlign(textStyle?.align),
         valign: 'middle',
+        shrinkText: true,
       });
       
       // Subtitle text (if present)
       if (node.subtitle) {
         slide1.addText(node.subtitle, {
-          x,
+          x: x + w * 0.05,
           y: y + h * 0.55,
-          w,
+          w: w * 0.9,
           h: h * 0.35,
-          fontSize: titleFontSize - 2,
+          fontSize: subtitleFontSize,
           italic: true,
           color: hexToPptx(node.style.textColor),
           align: getTextAlign(textStyle?.align),
           valign: 'top',
+          shrinkText: true,
         });
       }
     });
     
     // Add footer
     slide1.addText(`Exported on ${new Date().toLocaleDateString()}`, {
-      x: 0.5,
-      y: slideHeight - 0.4,
-      w: slideWidth - 1,
-      h: 0.3,
+      x: margin,
+      y: slideHeight - footerHeight - 0.1,
+      w: slideWidth - (margin * 2),
+      h: footerHeight,
       fontSize: 8,
       color: '94a3b8',
       align: 'center',
