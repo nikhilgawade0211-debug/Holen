@@ -158,6 +158,7 @@ export default function DiagramCanvas() {
   // Handle edge reconnection (drag edge to new target)
   const onReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
+      console.log('Reconnecting edge:', oldEdge.id, 'to:', newConnection.target);
       if (newConnection.target && newConnection.target !== oldEdge.target) {
         reconnectEdge(oldEdge.id, newConnection.target);
       }
@@ -185,6 +186,7 @@ export default function DiagramCanvas() {
         zoomOnScroll={false} // Disable zoom on scroll so pan works
         zoomOnPinch // Enable pinch-to-zoom on touch
         selectNodesOnDrag={false}
+        reconnectRadius={25}
         fitView
         fitViewOptions={{ padding: 0.2 }}
         minZoom={0.1}

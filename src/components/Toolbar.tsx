@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useDiagramStore } from '@/store/diagramStore';
 import { applyDagreLayout } from '@/services/layoutService';
 import { 
@@ -38,6 +39,40 @@ export default function Toolbar() {
   const [exportQuality, setExportQuality] = useState<ExportQuality>('high');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [menuPosition, setMenuPosition] = useState({ top: 0, left: 0 });
+  const exportButtonRef = useRef<HTMLButtonElement>(null);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node;
+      if (
+        exportMenuRef.current && 
+        !exportMenuRef.current.contains(target) &&
+        exportButtonRef.current &&
+        !exportButtonRef.current.contains(target)
+      ) {
+        setShowExportMenu(false);
+      }
+    }
+    
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [showExportMenu]);
+
+  // Update menu position when shown
+  useEffect(() => {
+    if (showExportMenu && exportButtonRef.current) {
+      const rect = exportButtonRef.current.getBoundingClientRect();
+      setMenuPosition({
+        top: rect.bottom + 8,
+        left: rect.right - 220, // Align right edge of menu with right edge of button
+      });
+    }
+  }, [showExportMenu]);
 
   const canUndo = historyIndex > 0;
   const canRedo = historyIndex < history.length - 1;
@@ -327,129 +362,140 @@ export default function Toolbar() {
 
       <div className="w-px h-6 bg-slate-200" />
 
-      {/* Export menu */}
-      <div className="relative">
-        <button 
-          onClick={() => setShowExportMenu(!showExportMenu)}
-          className={`${buttonBase} bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 focus:ring-orange-400 shadow-sm hover:shadow`}
+      {/* Export button */}
+      <button 
+        ref={exportButtonRef}
+        onClick={() => setShowExportMenu(!showExportMenu)}
+        className={`${buttonBase} bg-gradient-to-r from-orange-500 to-amber-500 text-white hover:from-orange-600 hover:to-amber-600 focus:ring-orange-400 shadow-sm hover:shadow`}
+      >
+        <span className="flex items-center gap-1">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
+          </svg>
+          Export
+          <svg className={`w-3 h-3 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </span>
+      </button>
+      
+      {/* Export menu portal */}
+      {showExportMenu && typeof document !== 'undefined' && createPortal(
+        <div 
+          ref={exportMenuRef}
+          className="fixed bg-white border border-slate-200 rounded-xl shadow-2xl min-w-[220px] overflow-hidden"
+          style={{ 
+            zIndex: 99999,
+            top: menuPosition.top,
+            left: Math.max(8, menuPosition.left), // Prevent going off-screen left
+          }}
         >
-          <span className="flex items-center gap-1">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
-            </svg>
-            Export
-            <svg className={`w-3 h-3 transition-transform ${showExportMenu ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </span>
-        </button>
-        
-        {showExportMenu && (
-          <div className="absolute top-full right-0 mt-2" style={{ zIndex: 9999 }}>
-            <div 
-              className="fixed inset-0" 
-              onClick={() => setShowExportMenu(false)}
-            />
-            <div 
-              className="relative bg-white border border-slate-200 rounded-xl shadow-xl min-w-[200px] overflow-hidden"
-            >
-              {/* Quality selector */}
-              <div className="px-3 py-2 border-b border-slate-100 bg-slate-50">
-                <label className="block text-xs font-medium text-slate-500 mb-1">Quality</label>
-                <div className="flex gap-1">
-                  {(['low', 'medium', 'high'] as ExportQuality[]).map((q) => (
-                    <button
-                      key={q}
-                      onClick={() => setExportQuality(q)}
-                      className={`flex-1 px-2 py-1 text-xs rounded-md transition-all ${
-                        exportQuality === q 
-                          ? 'bg-blue-500 text-white' 
-                          : 'bg-white text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      {q.charAt(0).toUpperCase() + q.slice(1)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              
-              {/* Export options */}
-              <div className="py-1">
-                <div className="px-3 py-1 text-xs font-medium text-slate-400">Images</div>
+          {/* Quality selector */}
+          <div className="px-3 py-2 border-b border-slate-100 bg-slate-50">
+            <label className="block text-xs font-medium text-slate-500 mb-1">Quality</label>
+            <div className="flex gap-1">
+              {(['low', 'medium', 'high'] as ExportQuality[]).map((q) => (
                 <button
-                  onClick={handleExportPNG}
-                  disabled={isExporting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                  key={q}
+                  onClick={(e) => { e.stopPropagation(); setExportQuality(q); }}
+                  className={`flex-1 px-2 py-1 text-xs rounded-md transition-all ${
+                    exportQuality === q 
+                      ? 'bg-blue-500 text-white' 
+                      : 'bg-white text-slate-600 hover:bg-slate-100'
+                  }`}
                 >
-                  <span className="w-6 h-6 rounded bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold">P</span>
-                  PNG (Transparent)
+                  {q.charAt(0).toUpperCase() + q.slice(1)}
                 </button>
-                <button
-                  onClick={handleExportJPEG}
-                  disabled={isExporting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">J</span>
-                  JPEG (Smaller)
-                </button>
-                <button
-                  onClick={handleExportWebP}
-                  disabled={isExporting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="w-6 h-6 rounded bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold">W</span>
-                  WebP (Modern)
-                </button>
-                <button
-                  onClick={handleExportSVG}
-                  disabled={isExporting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="w-6 h-6 rounded bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-bold">S</span>
-                  SVG (Vector)
-                </button>
-                
-                <div className="my-1 border-t border-slate-100" />
-                <div className="px-3 py-1 text-xs font-medium text-slate-400">Documents</div>
-                <button
-                  onClick={handleExportPDF}
-                  disabled={isExporting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="w-6 h-6 rounded bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold">P</span>
-                  PDF
-                </button>
-                <button
-                  onClick={handleExportDOCX}
-                  disabled={isExporting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">D</span>
-                  DOCX
-                </button>
-                <button
-                  onClick={handleExportHTML}
-                  disabled={isExporting}
-                  className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                >
-                  <span className="w-6 h-6 rounded bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold">H</span>
-                  HTML
-                </button>
-              </div>
-              
-              {isExporting && (
-                <div className="px-3 py-2 border-t border-slate-100 bg-blue-50 text-blue-600 text-xs flex items-center gap-2">
-                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-                  </svg>
-                  Exporting...
-                </div>
-              )}
+              ))}
             </div>
           </div>
-        )}
-      </div>
+          
+          {/* Export options */}
+          <div className="py-1">
+            <div className="px-3 py-1 text-xs font-medium text-slate-400">Images</div>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportPNG(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-pink-100 text-pink-600 flex items-center justify-center text-xs font-bold">P</span>
+              PNG (Transparent)
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportJPEG(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">J</span>
+              JPEG (Smaller)
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportWebP(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-green-100 text-green-600 flex items-center justify-center text-xs font-bold">W</span>
+              WebP (Modern)
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportSVG(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-purple-100 text-purple-600 flex items-center justify-center text-xs font-bold">S</span>
+              SVG (Vector)
+            </button>
+            
+            <div className="my-1 border-t border-slate-100" />
+            <div className="px-3 py-1 text-xs font-medium text-slate-400">Documents</div>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportPDF(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-red-100 text-red-600 flex items-center justify-center text-xs font-bold">P</span>
+              PDF
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportDOCX(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">D</span>
+              DOCX
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportHTML(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold">H</span>
+              HTML
+            </button>
+          </div>
+          
+          {isExporting && (
+            <div className="px-3 py-2 border-t border-slate-100 bg-blue-50 text-blue-600 text-xs flex items-center gap-2">
+              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+              Exporting...
+            </div>
+          )}
+          
+          {/* Close button */}
+          <div className="px-3 py-2 border-t border-slate-100 bg-slate-50">
+            <button
+              onClick={() => setShowExportMenu(false)}
+              className="w-full px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded transition-colors"
+            >
+              Close
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
       
       {/* Selection indicator */}
       {selectedNodeIds.length > 1 && (
