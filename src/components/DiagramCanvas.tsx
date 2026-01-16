@@ -85,6 +85,7 @@ export default function DiagramCanvas() {
         },
         data: {
           borderRadius: edge.style?.borderRadius ?? 4,
+          offset: edge.style?.offset ?? 25, // Spacing from parent node
         },
         animated: edge.style?.animated || false,
         selected: edge.id === selectedEdgeId,

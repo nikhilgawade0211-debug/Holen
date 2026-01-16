@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useMemo } from 'react';
-import { BaseEdge, EdgeProps, useNodes, Node, useEdges } from '@xyflow/react';
+import { BaseEdge, EdgeProps, useNodes, Node } from '@xyflow/react';
 
 interface NodeBounds {
   id: string;
@@ -9,8 +9,6 @@ interface NodeBounds {
   right: number;
   top: number;
   bottom: number;
-  centerX: number;
-  centerY: number;
 }
 
 // Get bounding box for all nodes except source and target
@@ -26,15 +24,8 @@ function getNodeBounds(nodes: Node[], excludeIds: string[]): NodeBounds[] {
         right: n.position.x + width + 5,
         top: n.position.y - 5,
         bottom: n.position.y + height + 5,
-        centerX: n.position.x + width / 2,
-        centerY: n.position.y + height / 2,
       };
     });
-}
-
-// Check if a point is inside any node
-function pointInNode(x: number, y: number, nodes: NodeBounds[]): boolean {
-  return nodes.some(n => x >= n.left && x <= n.right && y >= n.top && y <= n.bottom);
 }
 
 // Check if a horizontal line segment intersects any node
@@ -52,177 +43,111 @@ function hLineIntersectsNodes(
   });
 }
 
-// Check if a vertical line segment intersects any node
-function vLineIntersectsNodes(
-  x: number,
-  y1: number,
-  y2: number,
-  nodes: NodeBounds[]
-): boolean {
-  const minY = Math.min(y1, y2);
-  const maxY = Math.max(y1, y2);
-  
-  return nodes.some((n) => {
-    return x >= n.left && x <= n.right && maxY >= n.top && minY <= n.bottom;
-  });
-}
-
-// Find a clear Y coordinate for horizontal routing
+// Find clear Y for horizontal segment, searching up first then down
 function findClearY(
   x1: number,
   x2: number,
-  preferredY: number,
+  startY: number,
   nodes: NodeBounds[],
-  searchUp: boolean,
-  searchDown: boolean
+  preferUp: boolean
 ): number {
-  if (!hLineIntersectsNodes(preferredY, x1, x2, nodes)) {
-    return preferredY;
+  if (!hLineIntersectsNodes(startY, x1, x2, nodes)) {
+    return startY;
   }
   
-  const step = 15;
-  const maxOffset = 400;
+  const step = 10;
+  const maxOffset = 300;
   
   for (let offset = step; offset <= maxOffset; offset += step) {
-    if (searchUp) {
-      const yUp = preferredY - offset;
-      if (!hLineIntersectsNodes(yUp, x1, x2, nodes)) {
-        return yUp;
-      }
-    }
-    if (searchDown) {
-      const yDown = preferredY + offset;
-      if (!hLineIntersectsNodes(yDown, x1, x2, nodes)) {
-        return yDown;
-      }
+    if (preferUp) {
+      const yUp = startY - offset;
+      if (!hLineIntersectsNodes(yUp, x1, x2, nodes)) return yUp;
+      const yDown = startY + offset;
+      if (!hLineIntersectsNodes(yDown, x1, x2, nodes)) return yDown;
+    } else {
+      const yDown = startY + offset;
+      if (!hLineIntersectsNodes(yDown, x1, x2, nodes)) return yDown;
+      const yUp = startY - offset;
+      if (!hLineIntersectsNodes(yUp, x1, x2, nodes)) return yUp;
     }
   }
   
-  return preferredY;
+  return startY;
 }
 
-// Find a clear X coordinate for vertical routing
-function findClearX(
-  y1: number,
-  y2: number,
-  preferredX: number,
-  nodes: NodeBounds[]
-): number {
-  if (!vLineIntersectsNodes(preferredX, y1, y2, nodes)) {
-    return preferredX;
-  }
-  
-  const step = 15;
-  const maxOffset = 400;
-  
-  for (let offset = step; offset <= maxOffset; offset += step) {
-    const xLeft = preferredX - offset;
-    if (!vLineIntersectsNodes(xLeft, y1, y2, nodes)) {
-      return xLeft;
-    }
-    const xRight = preferredX + offset;
-    if (!vLineIntersectsNodes(xRight, y1, y2, nodes)) {
-      return xRight;
-    }
-  }
-  
-  return preferredX;
-}
-
-// Generate orthogonal path that avoids nodes
-function generateSmartPath(
+// Generate org-chart style path: straight down, horizontal, straight down
+function generateOrgChartPath(
   sourceX: number,
   sourceY: number,
   targetX: number,
   targetY: number,
   nodes: NodeBounds[],
-  borderRadius: number = 4
+  spacing: number,
+  borderRadius: number
 ): string {
-  const r = Math.min(borderRadius, 8);
+  const r = Math.min(borderRadius, 6);
   
-  // Determine if going down or up
+  // Going down the hierarchy (source is parent, target is child)
   const goingDown = targetY > sourceY;
   
-  // Gap between source bottom and target top
-  const gap = goingDown ? targetY - sourceY : sourceY - targetY;
-  
-  // If source and target are vertically aligned (or very close)
-  if (Math.abs(sourceX - targetX) < 10) {
-    // Simple vertical line
+  // If vertically aligned, just draw a straight line
+  if (Math.abs(sourceX - targetX) < 3) {
     return `M ${sourceX} ${sourceY} L ${targetX} ${targetY}`;
   }
   
-  // Standard org-chart routing: go down, horizontal, then down again
-  // Calculate midpoint Y - prefer to route in the gap between rows
-  let midY: number;
+  // Calculate the horizontal bar Y position
+  // It should be close to the source (parent) - just below it
+  let barY: number;
   
   if (goingDown) {
-    // Route in the upper third of the gap (closer to source)
-    midY = sourceY + Math.min(gap * 0.3, 30);
+    // Bar is placed 'spacing' pixels below the source
+    barY = sourceY + spacing;
+    // Make sure barY is between source and target
+    barY = Math.min(barY, sourceY + (targetY - sourceY) * 0.4);
   } else {
-    // Going up - route in lower third
-    midY = sourceY - Math.min(gap * 0.3, 30);
+    // Going up - bar is above the source
+    barY = sourceY - spacing;
+    barY = Math.max(barY, sourceY - (sourceY - targetY) * 0.4);
   }
   
-  // Check if this midY intersects any nodes when going from sourceX to targetX
-  const clearMidY = findClearY(
+  // Check if horizontal bar intersects any nodes
+  barY = findClearY(
     Math.min(sourceX, targetX),
     Math.max(sourceX, targetX),
-    midY,
+    barY,
     nodes,
-    !goingDown, // search up if going down
-    goingDown   // search down if going up
+    !goingDown
   );
   
-  // Check vertical segments for collision
-  const sourceVerticalClear = !vLineIntersectsNodes(sourceX, sourceY, clearMidY, nodes);
-  const targetVerticalClear = !vLineIntersectsNodes(targetX, clearMidY, targetY, nodes);
+  // Build the path with rounded corners
+  const goingRight = targetX > sourceX;
+  const dir = goingRight ? 1 : -1;
   
-  if (sourceVerticalClear && targetVerticalClear) {
-    // Standard 3-bend path with rounded corners
-    const dir = sourceX < targetX ? 1 : -1;
-    const vDir = goingDown ? 1 : -1;
+  if (goingDown) {
+    // Path: down from source -> horizontal bar -> down to target
+    const rClamped = Math.min(r, Math.abs(barY - sourceY) / 2, Math.abs(targetY - barY) / 2);
     
     return [
       `M ${sourceX} ${sourceY}`,
-      `L ${sourceX} ${clearMidY - r * vDir}`,
-      `Q ${sourceX} ${clearMidY} ${sourceX + r * dir} ${clearMidY}`,
-      `L ${targetX - r * dir} ${clearMidY}`,
-      `Q ${targetX} ${clearMidY} ${targetX} ${clearMidY + r * vDir}`,
+      `L ${sourceX} ${barY - rClamped}`,
+      `Q ${sourceX} ${barY} ${sourceX + rClamped * dir} ${barY}`,
+      `L ${targetX - rClamped * dir} ${barY}`,
+      `Q ${targetX} ${barY} ${targetX} ${barY + rClamped}`,
+      `L ${targetX} ${targetY}`,
+    ].join(' ');
+  } else {
+    // Going up
+    const rClamped = Math.min(r, Math.abs(sourceY - barY) / 2, Math.abs(barY - targetY) / 2);
+    
+    return [
+      `M ${sourceX} ${sourceY}`,
+      `L ${sourceX} ${barY + rClamped}`,
+      `Q ${sourceX} ${barY} ${sourceX + rClamped * dir} ${barY}`,
+      `L ${targetX - rClamped * dir} ${barY}`,
+      `Q ${targetX} ${barY} ${targetX} ${barY - rClamped}`,
       `L ${targetX} ${targetY}`,
     ].join(' ');
   }
-  
-  // Need to route around obstacles - find clear X positions
-  const clearSourceX = findClearX(sourceY, clearMidY, sourceX, nodes);
-  const clearTargetX = findClearX(clearMidY, targetY, targetX, nodes);
-  
-  // Build a more complex path
-  const points: { x: number; y: number }[] = [
-    { x: sourceX, y: sourceY },
-  ];
-  
-  // If we needed to shift the source vertical segment
-  if (clearSourceX !== sourceX) {
-    const exitY = sourceY + (goingDown ? 15 : -15);
-    points.push({ x: sourceX, y: exitY });
-    points.push({ x: clearSourceX, y: exitY });
-  }
-  
-  points.push({ x: clearSourceX, y: clearMidY });
-  points.push({ x: clearTargetX, y: clearMidY });
-  
-  // If we needed to shift the target vertical segment
-  if (clearTargetX !== targetX) {
-    const entryY = targetY + (goingDown ? -15 : 15);
-    points.push({ x: clearTargetX, y: entryY });
-    points.push({ x: targetX, y: entryY });
-  }
-  
-  points.push({ x: targetX, y: targetY });
-  
-  // Convert points to path (simple line segments)
-  return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
 }
 
 export default function SmartEdge({
@@ -240,7 +165,9 @@ export default function SmartEdge({
   const nodes = useNodes();
   
   // Get edge-specific settings from data
-  const borderRadius = (data as { borderRadius?: number })?.borderRadius ?? 4;
+  const edgeData = data as { borderRadius?: number; offset?: number } | undefined;
+  const spacing = edgeData?.offset ?? 25; // Default spacing from parent
+  const borderRadius = edgeData?.borderRadius ?? 4;
   
   const nodeBounds = useMemo(
     () => getNodeBounds(nodes, [source, target]),
@@ -248,15 +175,16 @@ export default function SmartEdge({
   );
   
   const path = useMemo(
-    () => generateSmartPath(
+    () => generateOrgChartPath(
       sourceX,
       sourceY,
       targetX,
       targetY,
       nodeBounds,
+      spacing,
       borderRadius
     ),
-    [sourceX, sourceY, targetX, targetY, nodeBounds, borderRadius]
+    [sourceX, sourceY, targetX, targetY, nodeBounds, spacing, borderRadius]
   );
   
   return (

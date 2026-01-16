@@ -447,23 +447,24 @@ function EdgeInspector({ edge, updateEdge, deleteEdge }: EdgeInspectorProps) {
           </div>
         </div>
 
-        {/* Path Spacing (Compactness) */}
+        {/* Branch Distance - how far down the horizontal bar is from parent */}
         <div className={sectionClass}>
-          <label className={labelClass}>Path Spacing</label>
+          <label className={labelClass}>Branch Distance</label>
+          <p className="text-xs text-slate-400 mb-2">Distance of horizontal bar from parent</p>
           <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500">Compact</span>
+            <span className="text-xs text-slate-500 w-12">Close</span>
             <input
               type="range"
-              min="0"
-              max="50"
-              value={edgeStyle.offset ?? 5}
+              min="10"
+              max="100"
+              value={edgeStyle.offset ?? 25}
               onChange={(e) => handleStyleChange('offset', parseInt(e.target.value))}
               className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
-            <span className="text-xs text-slate-500">Spread</span>
+            <span className="text-xs text-slate-500 w-8">Far</span>
           </div>
           <div className="text-center text-xs text-slate-400 mt-1">
-            {edgeStyle.offset ?? 5}px
+            {edgeStyle.offset ?? 25}px below parent
           </div>
         </div>
 

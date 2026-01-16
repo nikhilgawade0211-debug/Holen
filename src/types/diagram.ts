@@ -65,8 +65,8 @@ export const DEFAULT_EDGE_STYLE: EdgeStyle = {
   stroke: '#64748b',
   strokeWidth: 2,
   animated: false,
-  offset: 5,        // Compact spacing
-  borderRadius: 4,  // Subtle corners
+  offset: 25,       // Spacing from parent (pixels below parent node)
+  borderRadius: 4,  // Corner radius
 };
 
 export interface DiagramData {
