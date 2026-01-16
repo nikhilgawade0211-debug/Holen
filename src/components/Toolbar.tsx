@@ -249,6 +249,37 @@ export default function Toolbar() {
     }
   };
 
+  const handleExportPPTX = async () => {
+    setIsExporting(true);
+    try {
+      // Get diagram data from store for PowerPoint export
+      const diagramData = saveDiagram();
+
+      const response = await fetch('/api/export/pptx', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          nodes: diagramData.nodes, 
+          edges: diagramData.edges, 
+          name: diagramName 
+        }),
+      });
+
+      if (response.ok) {
+        const blob = await response.blob();
+        saveAs(blob, `${diagramName.replace(/\s+/g, '_')}.pptx`);
+      } else {
+        alert('Failed to export PPTX');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('PPTX export failed');
+    } finally {
+      setIsExporting(false);
+      setShowExportMenu(false);
+    }
+  };
+
   const handleDelete = () => {
     if (selectedNodeIds.length > 1) {
       deleteSelectedNodes();
@@ -465,6 +496,14 @@ export default function Toolbar() {
             >
               <span className="w-6 h-6 rounded bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">D</span>
               DOCX
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleExportPPTX(); }}
+              disabled={isExporting}
+              className="w-full flex items-center gap-2 px-3 py-2 text-sm text-slate-700 hover:bg-slate-100 transition-colors disabled:opacity-50"
+            >
+              <span className="w-6 h-6 rounded bg-orange-100 text-orange-600 flex items-center justify-center text-xs font-bold">PP</span>
+              PPTX (PowerPoint)
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleExportHTML(); }}
