@@ -239,9 +239,9 @@ function NodeCard({ data }: NodeCardProps) {
           minHeight: node.height,
         }}
       >
-        {/* Title */}
+        {/* Title - supports multi-line */}
         <div 
-          className="leading-tight px-1"
+          className="leading-tight px-1 whitespace-pre-wrap"
           style={{
             fontSize: getFontSize(txtStyle.fontSize),
             fontWeight: txtStyle.bold ? 600 : 500,
@@ -254,9 +254,12 @@ function NodeCard({ data }: NodeCardProps) {
           {title || 'Untitled'}
         </div>
 
-        {/* Subtitle */}
+        {/* Subtitle - supports multi-line */}
         {subtitle && (
-          <div className="text-xs text-center mt-0.5 opacity-80">
+          <div 
+            className="text-xs text-center mt-0.5 opacity-80 whitespace-pre-wrap"
+            style={{ textAlign: txtStyle.align, width: '100%' }}
+          >
             {subtitle}
           </div>
         )}

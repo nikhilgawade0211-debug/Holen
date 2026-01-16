@@ -221,15 +221,17 @@ export default function Toolbar() {
   const handleExportDOCX = async () => {
     setIsExporting(true);
     try {
-      const dataUrl = await exportToPNG(exportQuality);
-      if (!dataUrl) return;
-
-      const base64 = dataUrl.split(',')[1];
+      // Get diagram data from store for editable export
+      const diagramData = saveDiagram();
 
       const response = await fetch('/api/export/docx', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ imageBase64: base64, name: diagramName }),
+        body: JSON.stringify({ 
+          nodes: diagramData.nodes, 
+          edges: diagramData.edges, 
+          name: diagramName 
+        }),
       });
 
       if (response.ok) {

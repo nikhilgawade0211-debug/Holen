@@ -106,22 +106,23 @@ export default function InspectorPanel() {
             <label className={labelClass}>Content</label>
             <div className="space-y-3">
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Title</label>
-                <input
-                  type="text"
+                <label className="block text-xs text-slate-500 mb-1">Title (multi-line supported)</label>
+                <textarea
                   value={selectedNode.title}
                   onChange={(e) => handleUpdate({ title: e.target.value })}
-                  className={inputClass}
+                  className={`${inputClass} resize-none min-h-[60px]`}
+                  rows={2}
+                  placeholder="Enter title (press Enter for new line)"
                 />
               </div>
               <div>
-                <label className="block text-xs text-slate-500 mb-1">Subtitle</label>
-                <input
-                  type="text"
+                <label className="block text-xs text-slate-500 mb-1">Subtitle (multi-line supported)</label>
+                <textarea
                   value={selectedNode.subtitle || ''}
                   onChange={(e) => handleUpdate({ subtitle: e.target.value })}
-                  className={inputClass}
-                  placeholder="Optional"
+                  className={`${inputClass} resize-none min-h-[60px]`}
+                  rows={2}
+                  placeholder="Optional (press Enter for new line)"
                 />
               </div>
               <div>
