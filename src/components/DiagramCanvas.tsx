@@ -15,6 +15,7 @@ import {
   applyNodeChanges,
   applyEdgeChanges,
   NodeTypes,
+  EdgeTypes,
   SelectionMode,
   OnSelectionChangeParams,
   Connection,
@@ -22,10 +23,15 @@ import {
 import '@xyflow/react/dist/style.css';
 
 import NodeCard, { NodeCardData } from './NodeCard';
+import SmartEdge from './SmartEdge';
 import { useDiagramStore } from '@/store/diagramStore';
 
 const nodeTypes: NodeTypes = {
   nodeCard: NodeCard,
+};
+
+const edgeTypes: EdgeTypes = {
+  smart: SmartEdge,
 };
 
 export default function DiagramCanvas() {
@@ -71,14 +77,13 @@ export default function DiagramCanvas() {
         target: edge.target,
         sourceHandle: 'bottom',
         targetHandle: 'top',
-        type: edge.type || 'smoothstep',
+        type: 'smart', // Use smart edge with node avoidance
         style: { 
           stroke: edge.style?.stroke || '#64748b', 
           strokeWidth: edge.style?.strokeWidth || 2,
           cursor: 'pointer',
         },
-        pathOptions: { 
-          offset: edge.style?.offset ?? 5, // Compact by default
+        data: {
           borderRadius: edge.style?.borderRadius ?? 4,
         },
         animated: edge.style?.animated || false,
@@ -182,6 +187,7 @@ export default function DiagramCanvas() {
         onPaneClick={onPaneClick}
         onSelectionChange={onSelectionChange}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         selectionMode={SelectionMode.Partial}
         selectionOnDrag
         panOnDrag={[1, 2]} // Pan with middle or right mouse button
