@@ -450,38 +450,24 @@ function EdgeInspector({ edge, updateEdge, deleteEdge }: EdgeInspectorProps) {
         {/* Branch Distance - how far down the horizontal bar is from parent */}
         <div className={sectionClass}>
           <label className={labelClass}>Branch Distance</label>
-          <p className="text-xs text-slate-400 mb-2">Distance of horizontal bar from parent</p>
-          <div className="flex items-center gap-3">
-            <span className="text-xs text-slate-500 w-12">Close</span>
-            <input
-              type="range"
-              min="5"
-              max="500"
-              step="5"
-              value={edgeStyle.offset ?? 25}
-              onChange={(e) => handleStyleChange('offset', parseInt(e.target.value))}
-              className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
-            />
-            <span className="text-xs text-slate-500 w-8">Far</span>
-          </div>
-          <div className="flex items-center justify-center gap-2 mt-2">
+          <p className="text-xs text-slate-400 mb-2">Distance of horizontal bar from parent (no limit)</p>
+          <div className="flex items-center justify-center gap-2">
             <input
               type="number"
               min="1"
-              max="1000"
               value={edgeStyle.offset ?? 25}
               onChange={(e) => handleStyleChange('offset', Math.max(1, parseInt(e.target.value) || 25))}
-              className="w-20 px-2 py-1 text-xs text-center border border-slate-200 rounded-md"
+              className="w-24 px-3 py-2 text-sm text-center border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-transparent"
             />
-            <span className="text-xs text-slate-400">px</span>
+            <span className="text-sm text-slate-500">px</span>
           </div>
           {/* Quick presets */}
-          <div className="flex gap-1 mt-2">
-            {[10, 25, 50, 100, 200, 300].map((val) => (
+          <div className="flex flex-wrap gap-1 mt-3">
+            {[10, 25, 50, 100, 200, 500, 1000].map((val) => (
               <button
                 key={val}
                 onClick={() => handleStyleChange('offset', val)}
-                className={`flex-1 px-1 py-1 text-xs rounded transition-all ${
+                className={`px-2 py-1 text-xs rounded transition-all ${
                   (edgeStyle.offset ?? 25) === val
                     ? 'bg-blue-500 text-white'
                     : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
@@ -490,6 +476,33 @@ function EdgeInspector({ edge, updateEdge, deleteEdge }: EdgeInspectorProps) {
                 {val}
               </button>
             ))}
+          </div>
+          {/* Increment/Decrement buttons */}
+          <div className="flex gap-2 mt-2">
+            <button
+              onClick={() => handleStyleChange('offset', Math.max(1, (edgeStyle.offset ?? 25) - 50))}
+              className="flex-1 px-2 py-1.5 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
+            >
+              − 50px
+            </button>
+            <button
+              onClick={() => handleStyleChange('offset', Math.max(1, (edgeStyle.offset ?? 25) - 10))}
+              className="flex-1 px-2 py-1.5 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
+            >
+              − 10px
+            </button>
+            <button
+              onClick={() => handleStyleChange('offset', (edgeStyle.offset ?? 25) + 10)}
+              className="flex-1 px-2 py-1.5 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
+            >
+              + 10px
+            </button>
+            <button
+              onClick={() => handleStyleChange('offset', (edgeStyle.offset ?? 25) + 50)}
+              className="flex-1 px-2 py-1.5 text-xs bg-slate-100 text-slate-600 rounded hover:bg-slate-200 transition-colors"
+            >
+              + 50px
+            </button>
           </div>
         </div>
 

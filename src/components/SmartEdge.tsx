@@ -101,13 +101,11 @@ function generateOrgChartPath(
   
   if (goingDown) {
     // Bar is placed 'spacing' pixels below the source
+    // No max limit - allow user to set any distance they want
     barY = sourceY + spacing;
-    // Make sure barY is between source and target
-    barY = Math.min(barY, sourceY + (targetY - sourceY) * 0.4);
   } else {
     // Going up - bar is above the source
     barY = sourceY - spacing;
-    barY = Math.max(barY, sourceY - (sourceY - targetY) * 0.4);
   }
   
   // Check if horizontal bar intersects any nodes
