@@ -345,15 +345,13 @@ export default function Toolbar() {
         </button>
         
         {showExportMenu && (
-          <>
+          <div className="absolute top-full right-0 mt-2" style={{ zIndex: 9999 }}>
             <div 
               className="fixed inset-0" 
-              style={{ zIndex: 9998 }}
               onClick={() => setShowExportMenu(false)}
             />
             <div 
-              className="absolute top-full right-0 mt-2 bg-white border border-slate-200 rounded-xl shadow-xl min-w-[200px] overflow-hidden"
-              style={{ zIndex: 9999 }}
+              className="relative bg-white border border-slate-200 rounded-xl shadow-xl min-w-[200px] overflow-hidden"
             >
               {/* Quality selector */}
               <div className="px-3 py-2 border-b border-slate-100 bg-slate-50">
@@ -449,7 +447,7 @@ export default function Toolbar() {
                 </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
       

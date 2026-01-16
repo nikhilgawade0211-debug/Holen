@@ -7,16 +7,45 @@ import {
   NodeStyle, 
   TextStyle, 
   BoxStyle,
+  EdgeStyle,
   DEFAULT_TEXT_STYLE,
   DEFAULT_BOX_STYLE,
+  DEFAULT_EDGE_STYLE,
+  DiagramEdge,
 } from '@/types/diagram';
 
+// Edge color presets
+const EDGE_COLOR_PRESETS = [
+  { name: 'Slate', color: '#64748b' },
+  { name: 'Blue', color: '#3b82f6' },
+  { name: 'Green', color: '#22c55e' },
+  { name: 'Red', color: '#ef4444' },
+  { name: 'Purple', color: '#a855f7' },
+  { name: 'Orange', color: '#f97316' },
+];
+
 export default function InspectorPanel() {
-  const { nodes, selectedNodeIds, updateNode, updateSelectedNodes, getSelectedNodes } = useDiagramStore();
+  const { 
+    nodes, 
+    selectedNodeIds, 
+    selectedEdgeId,
+    updateNode, 
+    updateSelectedNodes, 
+    updateEdge,
+    deleteEdge,
+    getSelectedNodes,
+    getSelectedEdge,
+  } = useDiagramStore();
 
   const selectedNodes = getSelectedNodes();
+  const selectedEdge = getSelectedEdge();
   const isMultiSelect = selectedNodes.length > 1;
   const selectedNode = selectedNodes[0];
+
+  // Show edge inspector if an edge is selected
+  if (selectedEdge) {
+    return <EdgeInspector edge={selectedEdge} updateEdge={updateEdge} deleteEdge={deleteEdge} />;
+  }
 
   if (selectedNodes.length === 0) {
     return (
@@ -26,8 +55,8 @@ export default function InspectorPanel() {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
           </svg>
         </div>
-        <p className="text-slate-500 text-sm">Select a node to edit its properties</p>
-        <p className="text-slate-400 text-xs mt-1">Use Ctrl/Cmd+click for multi-select</p>
+        <p className="text-slate-500 text-sm">Select a node or edge to edit</p>
+        <p className="text-slate-400 text-xs mt-1">Click edges to style them</p>
       </div>
     );
   }
@@ -311,6 +340,136 @@ export default function InspectorPanel() {
             />
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Edge Inspector Component
+interface EdgeInspectorProps {
+  edge: DiagramEdge;
+  updateEdge: (id: string, updates: Partial<DiagramEdge>) => void;
+  deleteEdge: (id: string) => void;
+}
+
+function EdgeInspector({ edge, updateEdge, deleteEdge }: EdgeInspectorProps) {
+  const edgeStyle = edge.style || DEFAULT_EDGE_STYLE;
+  
+  const sectionClass = "mb-5 pb-5 border-b border-slate-100 last:border-0";
+  const labelClass = "block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2";
+  const toggleBtnClass = (active: boolean) => `flex-1 px-3 py-1.5 text-xs font-medium rounded-md transition-all ${active ? 'bg-blue-500 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`;
+
+  const handleStyleChange = (key: keyof EdgeStyle, value: EdgeStyle[keyof EdgeStyle]) => {
+    updateEdge(edge.id, { 
+      style: { ...edgeStyle, [key]: value } 
+    });
+  };
+
+  return (
+    <div className="w-80 bg-white/80 backdrop-blur-sm border-l border-slate-200 overflow-y-auto">
+      {/* Header */}
+      <div className="sticky top-0 bg-white/90 backdrop-blur-sm px-5 py-4 border-b border-slate-100 z-10">
+        <h2 className="font-bold text-lg text-slate-800">Edge Properties</h2>
+        <p className="text-xs text-slate-500 mt-1">Customize connection line</p>
+      </div>
+
+      <div className="p-5">
+        {/* Line Type */}
+        <div className={sectionClass}>
+          <label className={labelClass}>Line Type</label>
+          <div className="flex gap-1">
+            {(['smoothstep', 'step', 'straight'] as const).map((type) => (
+              <button
+                key={type}
+                onClick={() => updateEdge(edge.id, { type })}
+                className={toggleBtnClass(edge.type === type)}
+              >
+                {type === 'smoothstep' ? 'Curved' : type === 'step' ? 'Stepped' : 'Straight'}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Line Color */}
+        <div className={sectionClass}>
+          <label className={labelClass}>Color</label>
+          <div className="grid grid-cols-6 gap-2">
+            {EDGE_COLOR_PRESETS.map((preset) => (
+              <button
+                key={preset.name}
+                onClick={() => handleStyleChange('stroke', preset.color)}
+                className={`
+                  w-8 h-8 rounded-lg border-2 transition-all duration-200 transform hover:scale-110
+                  ${edgeStyle.stroke === preset.color
+                    ? 'border-blue-500 ring-2 ring-blue-200 shadow-md'
+                    : 'border-slate-200 hover:border-slate-300'
+                  }
+                `}
+                style={{ backgroundColor: preset.color }}
+                title={preset.name}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Line Width */}
+        <div className={sectionClass}>
+          <label className={labelClass}>Line Width</label>
+          <div className="flex gap-1">
+            {([1, 2, 3, 4, 5] as const).map((width) => (
+              <button
+                key={width}
+                onClick={() => handleStyleChange('strokeWidth', width)}
+                className={toggleBtnClass(edgeStyle.strokeWidth === width)}
+              >
+                {width}px
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Animation */}
+        <div className={sectionClass}>
+          <label className={labelClass}>Animation</label>
+          <div className="flex gap-1">
+            <button
+              onClick={() => handleStyleChange('animated', false)}
+              className={toggleBtnClass(!edgeStyle.animated)}
+            >
+              Static
+            </button>
+            <button
+              onClick={() => handleStyleChange('animated', true)}
+              className={toggleBtnClass(edgeStyle.animated)}
+            >
+              Animated
+            </button>
+          </div>
+        </div>
+
+        {/* Delete Edge */}
+        <div className={sectionClass}>
+          <button
+            onClick={() => deleteEdge(edge.id)}
+            className="w-full px-4 py-2 bg-red-500 text-white text-sm font-medium rounded-lg hover:bg-red-600 transition-colors"
+          >
+            Delete Connection
+          </button>
+          <p className="text-xs text-slate-400 mt-2 text-center">
+            This will disconnect the nodes
+          </p>
+        </div>
+
+        {/* Edge ID */}
+        <div>
+          <label className={labelClass}>Edge ID</label>
+          <input
+            type="text"
+            value={edge.id}
+            readOnly
+            className="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs bg-slate-50 text-slate-400 font-mono"
+          />
+        </div>
       </div>
     </div>
   );

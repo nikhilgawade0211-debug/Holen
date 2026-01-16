@@ -32,8 +32,10 @@ export default function DiagramCanvas() {
     nodes: diagramNodes,
     edges: diagramEdges,
     selectedNodeIds,
+    selectedEdgeId,
     setSelectedNode,
     setSelectedNodes,
+    setSelectedEdge,
     updateNode,
     moveSelectedNodes,
   } = useDiagramStore();
@@ -67,12 +69,17 @@ export default function DiagramCanvas() {
         target: edge.target,
         sourceHandle: 'bottom',
         targetHandle: 'top',
-        type: 'smoothstep',
-        style: { stroke: '#64748b', strokeWidth: 2 },
+        type: edge.type || 'smoothstep',
+        style: { 
+          stroke: edge.style?.stroke || '#64748b', 
+          strokeWidth: edge.style?.strokeWidth || 2,
+          cursor: 'pointer',
+        },
         pathOptions: { offset: 20, borderRadius: 8 },
-        animated: false,
+        animated: edge.style?.animated || false,
+        selected: edge.id === selectedEdgeId,
       })),
-    [diagramEdges]
+    [diagramEdges, selectedEdgeId]
   );
 
   const [nodes, setNodes] = useNodesState(rfNodes);
@@ -135,7 +142,15 @@ export default function DiagramCanvas() {
   const onPaneClick = useCallback(() => {
     const { clearSelection } = useDiagramStore.getState();
     clearSelection();
-  }, []);
+    setSelectedEdge(null);
+  }, [setSelectedEdge]);
+
+  const onEdgeClick = useCallback(
+    (_event: React.MouseEvent, edge: Edge) => {
+      setSelectedEdge(edge.id);
+    },
+    [setSelectedEdge]
+  );
 
   return (
     <div className="w-full h-full" id="diagram-canvas">
@@ -145,6 +160,7 @@ export default function DiagramCanvas() {
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onNodeClick={onNodeClick}
+        onEdgeClick={onEdgeClick}
         onPaneClick={onPaneClick}
         onSelectionChange={onSelectionChange}
         nodeTypes={nodeTypes}

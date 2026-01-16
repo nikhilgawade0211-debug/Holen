@@ -45,12 +45,25 @@ export interface DiagramNode {
   position: { x: number; y: number };
 }
 
+export interface EdgeStyle {
+  stroke: string;
+  strokeWidth: number;
+  animated: boolean;
+}
+
 export interface DiagramEdge {
   id: string;
   source: string;
   target: string;
   type: 'straight' | 'smoothstep' | 'step';
+  style?: EdgeStyle;
 }
+
+export const DEFAULT_EDGE_STYLE: EdgeStyle = {
+  stroke: '#64748b',
+  strokeWidth: 2,
+  animated: false,
+};
 
 export interface DiagramData {
   schemaVersion: number;

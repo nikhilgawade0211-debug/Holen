@@ -8,8 +8,10 @@ import {
   NodeStyle,
   TextStyle,
   BoxStyle,
+  EdgeStyle,
   DEFAULT_TEXT_STYLE,
   DEFAULT_BOX_STYLE,
+  DEFAULT_EDGE_STYLE,
 } from '@/types/diagram';
 
 const STORAGE_KEY = 'holen-diagram';
@@ -25,6 +27,7 @@ interface DiagramStore {
   edges: DiagramEdge[];
   selectedNodeId: string | null;
   selectedNodeIds: string[]; // Multi-select support
+  selectedEdgeId: string | null; // Edge selection
   diagramName: string;
 
   // History for undo/redo
@@ -45,6 +48,9 @@ interface DiagramStore {
   deleteNode: (id: string) => void;
   deleteSelectedNodes: () => void;
   moveSelectedNodes: (deltaX: number, deltaY: number) => void;
+  setSelectedEdge: (id: string | null) => void;
+  updateEdge: (id: string, updates: Partial<DiagramEdge>) => void;
+  deleteEdge: (id: string) => void;
   setNodePositions: (positions: { id: string; x: number; y: number }[]) => void;
   setDiagramName: (name: string) => void;
 
@@ -62,9 +68,11 @@ interface DiagramStore {
 
   // Computed
   getNodeById: (id: string) => DiagramNode | undefined;
+  getEdgeById: (id: string) => DiagramEdge | undefined;
   getChildNodes: (parentId: string) => DiagramNode[];
   getRootNodes: () => DiagramNode[];
   getSelectedNodes: () => DiagramNode[];
+  getSelectedEdge: () => DiagramEdge | undefined;
 }
 
 function deriveEdges(nodes: DiagramNode[]): DiagramEdge[] {
@@ -75,6 +83,7 @@ function deriveEdges(nodes: DiagramNode[]): DiagramEdge[] {
       source: n.parentId!,
       target: n.id,
       type: 'smoothstep' as const,
+      style: DEFAULT_EDGE_STYLE,
     }));
 }
 
@@ -105,6 +114,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   edges: [],
   selectedNodeId: null,
   selectedNodeIds: [],
+  selectedEdgeId: null,
   diagramName: 'Untitled Diagram',
   history: [],
   historyIndex: -1,
@@ -286,6 +296,40 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
     }));
   },
 
+  setSelectedEdge: (id) => set({
+    selectedEdgeId: id,
+    // Clear node selection when selecting an edge
+    selectedNodeId: null,
+    selectedNodeIds: [],
+  }),
+
+  updateEdge: (id, updates) => {
+    get().saveToHistory();
+    set((state) => ({
+      edges: state.edges.map((e) =>
+        e.id === id ? { ...e, ...updates } : e
+      ),
+    }));
+    get().saveToLocalStorage();
+  },
+
+  deleteEdge: (id) => {
+    get().saveToHistory();
+    // Find the edge to get the target node
+    const edge = get().edges.find((e) => e.id === id);
+    if (!edge) return;
+    
+    // Remove parent reference from the target node (breaks the connection)
+    set((state) => ({
+      nodes: state.nodes.map((n) =>
+        n.id === edge.target ? { ...n, parentId: null } : n
+      ),
+      edges: state.edges.filter((e) => e.id !== id),
+      selectedEdgeId: null,
+    }));
+    get().saveToLocalStorage();
+  },
+
   setNodePositions: (positions) => {
     set((state) => ({
       nodes: state.nodes.map((n) => {
@@ -392,6 +436,7 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
       edges: [],
       selectedNodeId: null,
       selectedNodeIds: [],
+      selectedEdgeId: null,
       diagramName: 'Untitled Diagram',
       history: [],
       historyIndex: -1,
@@ -400,11 +445,16 @@ export const useDiagramStore = create<DiagramStore>((set, get) => ({
   },
 
   getNodeById: (id) => get().nodes.find((n) => n.id === id),
+  getEdgeById: (id) => get().edges.find((e) => e.id === id),
   getChildNodes: (parentId) =>
     get().nodes.filter((n) => n.parentId === parentId),
   getRootNodes: () => get().nodes.filter((n) => n.parentId === null),
   getSelectedNodes: () => {
     const { nodes, selectedNodeIds } = get();
     return nodes.filter((n) => selectedNodeIds.includes(n.id));
+  },
+  getSelectedEdge: () => {
+    const { edges, selectedEdgeId } = get();
+    return edges.find((e) => e.id === selectedEdgeId);
   },
 }));

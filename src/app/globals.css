@@ -88,11 +88,24 @@ body {
 .react-flow__edge-path {
   stroke: #64748b;
   stroke-width: 2;
-  transition: stroke 0.15s ease-out;
+  transition: stroke 0.15s ease-out, stroke-width 0.15s ease-out;
+  cursor: pointer;
 }
 
 .react-flow__edge:hover .react-flow__edge-path {
   stroke: #3b82f6;
+  stroke-width: 3;
+}
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: #3b82f6 !important;
+  stroke-width: 3 !important;
+}
+
+/* Edge interaction area - make it easier to click */
+.react-flow__edge-interaction {
+  stroke-width: 20;
+  cursor: pointer;
 }
 
 .react-flow__background {
