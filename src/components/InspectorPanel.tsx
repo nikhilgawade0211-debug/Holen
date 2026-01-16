@@ -455,16 +455,41 @@ function EdgeInspector({ edge, updateEdge, deleteEdge }: EdgeInspectorProps) {
             <span className="text-xs text-slate-500 w-12">Close</span>
             <input
               type="range"
-              min="10"
-              max="100"
+              min="5"
+              max="500"
+              step="5"
               value={edgeStyle.offset ?? 25}
               onChange={(e) => handleStyleChange('offset', parseInt(e.target.value))}
               className="flex-1 h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-blue-500"
             />
             <span className="text-xs text-slate-500 w-8">Far</span>
           </div>
-          <div className="text-center text-xs text-slate-400 mt-1">
-            {edgeStyle.offset ?? 25}px below parent
+          <div className="flex items-center justify-center gap-2 mt-2">
+            <input
+              type="number"
+              min="1"
+              max="1000"
+              value={edgeStyle.offset ?? 25}
+              onChange={(e) => handleStyleChange('offset', Math.max(1, parseInt(e.target.value) || 25))}
+              className="w-20 px-2 py-1 text-xs text-center border border-slate-200 rounded-md"
+            />
+            <span className="text-xs text-slate-400">px</span>
+          </div>
+          {/* Quick presets */}
+          <div className="flex gap-1 mt-2">
+            {[10, 25, 50, 100, 200, 300].map((val) => (
+              <button
+                key={val}
+                onClick={() => handleStyleChange('offset', val)}
+                className={`flex-1 px-1 py-1 text-xs rounded transition-all ${
+                  (edgeStyle.offset ?? 25) === val
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                }`}
+              >
+                {val}
+              </button>
+            ))}
           </div>
         </div>
 
